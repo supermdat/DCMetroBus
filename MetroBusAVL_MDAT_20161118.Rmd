@@ -1,0 +1,2334 @@
+---
+title: "R Notebook for WMATA Metrobus Data"
+output:
+  html_notebook: default
+  html_document: default
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook for analysis using data on the DC Bus System (WMATA Metrobus).  The data were obtained here:
+
+https://planitmetro.com/2016/11/16/data-download-metrobus-vehicle-location-data/
+
+
+Load the packages to be used.
+```{r echo = FALSE, message = FALSE}
+
+library("tidyr")
+library("plyr")
+library("dplyr")
+library("magrittr")
+library("data.table")
+library("lubridate")
+library("geosphere")
+library("ggplot2")
+library("ggvis")
+library("rbokeh")
+
+```
+
+
+Get the data.
+
+First let's check the working directory.
+```{r}
+
+getwd()
+
+```
+
+
+Then, actually get the data.
+```{r echo = FALSE}
+
+setwd("/Users/mdturse/Desktop/Analytics/Metro Bus AVL/Bus AVL Oct 2016")
+
+for (i in 3:7){
+  assign(paste0("Oct0", i, "Raw"),
+         read.delim(paste0("2016100", i, "MetrobusAVL.txt"),
+                    sep = "\t",
+                    header = TRUE,
+                    na.strings = NULL
+                   )
+        )
+  
+  message("Oct0", i, "Raw")
+ 
+  str(get(paste0("Oct0", i, "Raw")
+         )
+     )
+  }
+
+```
+
+
+Put the daily data together.
+```{r}
+
+AllDays <- bind_rows(list(Oct03Raw, Oct04Raw, Oct05Raw, Oct06Raw, Oct07Raw),
+                     .id = c("group")
+                    )
+dim(AllDays)
+str(AllDays)
+
+```
+
+
+Deleting old data frames.
+```{r}
+
+for (i in 3:7){
+  rm(list = ls(pattern = paste0("Oct0", i, "Raw")
+              )
+    )
+  
+  message("Deleting Oct0", i, "Raw")
+  }
+
+```
+
+
+Updating variable types.
+
+Then, sorting the data and adding a RowNumber (to be used for identifying rows later in the analyses.)
+```{r}
+
+AllDays$group <- factor(AllDays$group)
+AllDays$Route_Direction <- factor(AllDays$Route_Direction)
+AllDays$Event_Time <- as.POSIXct(AllDays$Event_Time, format = "%m-%d-%y %I:%M:%S %p")
+AllDays$Departure_Time <- as.POSIXct(AllDays$Departure_Time, format = "%m-%d-%y %I:%M:%S %p")
+
+str(AllDays)
+
+
+AllDays_Sorted <- arrange(AllDays,
+                          Bus_ID,
+                          Event_Time
+                         ) %>% 
+  mutate(RowNum_OG = row_number() # this is useful in identify the row later on
+        )
+
+# rm(AllDays)
+str(AllDays_Sorted)
+
+View(head(AllDays_Sorted, 100))
+
+```
+
+
+Feature engineering.
+
+Inspecting incidences of consecutive Stop_IDs. This is done because investigation showed that many conseutive events occurr at the same Stop_ID, but with various Dwell_Times, Odometer_Distances, etc.  All of which affect calculations and analyses.
+
+Create data on the runs (consecutive Stop_IDs).
+```{r}
+
+StopID_Runs <- rle(AllDays_Sorted$Stop_ID)
+
+StopID_Runs$ends <- cumsum(StopID_Runs$lengths)
+
+StopID_Runs$starts <- ifelse(is.na(lag(StopID_Runs$ends)
+                                  ),
+                             1,
+                             lag(StopID_Runs$ends) + 1
+                            )
+
+str(StopID_Runs)
+class(StopID_Runs)
+
+StopID_Runs_df <- data.frame(unclass(StopID_Runs))
+str(StopID_Runs_df)
+class(StopID_Runs_df)
+# rm(StopID_Runs_df)
+
+```
+
+
+Trying to link data on RunsGroups with the original data (AllDays_Sorted). The goal is to select only one record per RunsGroup - that being the record with the longest Dwell_Time.
+
+I attempted this computation using both data.frames (dplyr) and data.tables (data.table). However, with 2,809,062 rows in one dataset and 3,119,443 rows in the other dataset, the current computation time is over 5 days...so I'm trying a different strategy to only select the first record in a run.
+```{r}
+
+# Create a RunsGroup variable for each run
+StopID_Runs_df$RunsGroup <- paste0("g", seq(1:nrow(StopID_Runs_df)
+                                           )
+                                  )
+
+str(StopID_Runs_df)
+head(StopID_Runs_df, 25)
+tail(StopID_Runs_df, 25)
+
+StopID_Runs_df <- StopID_Runs_df %>% 
+  mutate(RowNum = row_number()
+        )
+
+str(StopID_Runs_df)
+head(StopID_Runs_df, 25)
+tail(StopID_Runs_df, 25)
+
+
+# Converting to data.tables for, hopefully, improved performance (speed) in computation
+StopID_Runs_dt <- data.table(StopID_Runs_df)
+setkey(StopID_Runs_dt, RowNum)
+str(StopID_Runs_dt)
+
+AllDays_Sorted_dt <- data.table(AllDays_Sorted)
+setkey(AllDays_Sorted_dt, RowNum_OG)
+str(AllDays_Sorted_dt)
+# rm(AllDays_Sorted_dt)
+
+
+# Actual loop to perform the computations and link to original data (AllDays_Sorted_dt)
+GroupData <- list()
+for(i in 1:nrow(StopID_Runs_dt)
+   ) {
+  assign(paste0("group_", i),
+           StopID_Runs_dt[RowNum == i, RunsGroup]
+          )
+  
+    #####  The code below is the same code as above, but done with dplyr  #####
+  
+    # assign(paste0("group_", i),
+  #        filter(StopID_Runs_df,
+  #               RowNum == i
+  #              ) %>% 
+  #          select(RunsGroup)
+  #       )
+  
+  assign(paste0("group_", i, "_start"),
+         StopID_Runs_dt[RowNum == i, starts]
+        )
+  
+  assign(paste0("group_", i, "_end"),
+         StopID_Runs_dt[RowNum == i, ends]
+        )
+  
+  assign(paste0("group_", i, "_rows"),
+         AllDays_Sorted_dt[RowNum_OG >= as.numeric(get(paste0("group_", i, "_start")
+                                                      )
+                                                  ) &
+                           RowNum_OG <= as.numeric(get(paste0("group_", i, "_end")
+                                                      )
+                                                  ),
+                           RunsGroup := as.character(get(paste0("group_", i)
+                                                        )
+                                                    )
+                          ]
+
+    #####  The code below is the same as the code above, but done with dplyr  #####
+    
+         # filter(AllDays_Sorted,
+         #        between(RowNum_OG,
+         #                as.numeric(get(paste0("group_", i, "_start")
+         #                              )
+         #                          ),
+         #                as.numeric(get(paste0("group_", i, "_end")
+         #                              )
+         #                          )
+         #               )
+         #       ) %>% 
+         #   mutate(RunsGroup = as.character(get(paste0("group_", i)
+         #                                     )
+         #                                 )
+         #        )
+        )
+  
+  GroupData[[i]] <- get(paste0("group_", i, "_rows"))
+  
+  message("Processing Group ", i, " of 2,809,062")
+}
+
+
+GroupData_df <- rbind.fill(GroupData)
+str(GroupData_df)
+head(GroupData_df)
+tail(GroupData_df)
+# rm(GroupData_df)
+
+
+group_1
+group_1_start
+group_1_end
+group_1_rows
+group_2_rows
+group_3_rows
+group_50_rows
+str(group_50_rows)
+group_2809062_rows
+GroupData[[1]]
+GroupData[[50]]
+
+
+#####  Testing Area (Below)  #####
+#####  Testing Area (Below)  #####
+#####  Testing Area (Below)  #####
+
+# head(StopID_Runs$starts, 20)
+# head(AllDays_NewOrder$Stop_ID, 20)
+# 
+# 
+# dat <- as.data.frame(c(1,1,7,7,7,9,6,8,2,2,2,1,1,1,1,1))
+# colnames(dat)[1] <- "dat"
+# r <- rle(dat$dat)
+# dat$run <- rep(r$lengths, r$lengths)
+# dat$runLag <- lag(dat$run)
+# dat$cond <- rep(r$values, r$lengths)
+# dat
+# View(dat)
+
+```
+
+
+When consecutive Stop_ID occurrs, only take the first occurrence. This is done because the computation time to select only the record with the longest Dwell_Time for each run was too long (over 5 days).
+
+This is probably less than ideal with regards to Dwell_Time, but should not make much difference for calculations of travel time, speed, etc.
+```{r}
+
+AllDays_FirstStopID <- AllDays_Sorted[StopID_Runs$starts, ]
+
+dim(AllDays_Sorted)
+dim(AllDays_FirstStopID)
+
+nrow(AllDays_Sorted) - nrow(AllDays_FirstStopID)
+
+# rm(AllDays_Sorted)
+# rm(StopID_Runs)
+str(AllDays_FirstStopID)
+
+```
+
+
+Feature engineering.
+
+Creating new variables.
+```{r}
+
+AllDays_AddVars <- mutate(AllDays_FirstStopID,
+                          Odometer_Distance_Mi = Odometer_Distance / 5280, #5,280 feet in 1 mile
+                          Dwell_Time2 = as.numeric(Departure_Time - Event_Time),
+                          Event_Time_Yr = as.integer(year(Event_Time)),
+                          Event_Time_Mth = as.integer(month(Event_Time)),
+                          Event_Time_Date = day(Event_Time),
+                          Event_Time_Day = wday(Event_Time, label = TRUE),
+                          Event_Time_Hr = hour(Event_Time),
+                          Event_Time_Min = minute(Event_Time),
+                          Event_Time_HrGroup = factor(ifelse(Event_Time_Hr < 3,
+                                                             "Group0_2",
+                                                      ifelse(Event_Time_Hr < 6,
+                                                             "Group3_5",
+                                                      ifelse(Event_Time_Hr < 9,
+                                                             "Group6_8",
+                                                      ifelse(Event_Time_Hr < 12,
+                                                             "Group9_11",
+                                                      ifelse(Event_Time_Hr < 15,
+                                                             "Group12_14",
+                                                      ifelse(Event_Time_Hr < 18,
+                                                             "Group15_17",
+                                                      ifelse(Event_Time_Hr < 21,
+                                                             "Group18_20",
+                                                      ifelse(Event_Time_Hr < 24,
+                                                             "Group21_23"
+                                                            )))))))),
+                                                         levels = c("Group0_2",
+                                                                    "Group3_5",
+                                                                    "Group6_8",
+                                                                    "Group9_11",
+                                                                    "Group12_14",
+                                                                    "Group15_17",
+                                                                    "Group18_20",
+                                                                    "Group21_23"
+                                                                   ),
+                                                         ordered = TRUE
+                                                     )
+                         )
+
+# rm(AllDays_FirstStopID)
+str(AllDays_AddVars)
+
+
+group_by(AllDays_AddVars,
+         Event_Time_HrGroup
+        ) %>% 
+  summarise(Cnts = n()
+           )
+
+
+View(head(filter(AllDays_AddVars,
+                 Event_Time_Hr == 0
+                ),
+          50
+         )
+    )
+
+View(head(AllDays_AddVars, 50))
+
+```
+
+
+<!-- Function for calculating the distance traveled based on the Haversine formula.  Original code from: https://www.r-bloggers.com/great-circle-distance-calculations-in-r/ -->
+<!-- ```{r} -->
+
+<!-- gcd.hf <- function(long1, lat1, long2, lat2) { -->
+<!--   R <- 6371 # Earth mean radius [km] -->
+<!--   delta.long <- (long2 - long1) -->
+<!--   delta.lat <- (lat2 - lat1) -->
+<!--   a <- sin(delta.lat/2)^2 + cos(lat1) * cos(lat2) * sin(delta.long/2)^2 -->
+<!--   c <- 2 * asin(min(1,sqrt(a))) -->
+<!--   d = R * c * 0.621371 # 1 km = 0.621371 miles -->
+<!--   return(d) # Distance in miles -->
+<!-- } -->
+
+<!-- ``` -->
+
+
+Feature engineering.
+
+Creating more variables. Creating a BusEvent row number for future identification purposes. Then, creating various variables to analyze distance traveled and speed.
+```{r}
+
+AllDays_BusDay <- group_by(AllDays_AddVars,
+                           Bus_ID,
+                           Event_Time_Date
+                          ) %>% 
+  mutate(BusDay_EventNum = row_number(),  # used to identify Bus movements on a particular date
+         
+         Odometer_Distance_Lag1 = lag(Odometer_Distance),
+         
+         Latitude_L1 = lag(Latitude),
+         Longitude_L1 = lag(Longitude),
+         # Lat_Radian = Latitude*pi/180,
+         # Long_Radian = Longitude*pi/180,
+         # Lat_Radian_L1 = lag(Lat_Radian),
+         # Long_Radian_L1 = lag(Long_Radian),
+         
+         # accounting for potential negative distances
+         TravelDistance_Ft = ifelse(Odometer_Distance > Odometer_Distance_Lag1,
+                                    Odometer_Distance - Odometer_Distance_Lag1,
+                                    NA
+                                   ),
+         TravelDistance_Mi = TravelDistance_Ft / 5280, #5,280 feet in 1 mile
+         
+         # TravelDistance_Mi2 = gcd.hf(long1 = Long_Radian_L1,
+         #                             lat1 = Lat_Radian_L1,
+         #                             long2 = Long_Radian,
+         #                             lat2 = Lat_Radian
+         #                            ),
+         
+         TravelDistance_Mi_Hvrs = 
+                              # ifelse((is.na(Longitude_L1) | is.na(Latitude_L1)
+                              #        ),
+                              #        NA,
+                              distHaversine(cbind(Longitude_L1, Latitude_L1),
+                                            cbind(Longitude, Latitude)
+                                           ) * 0.000621371, # 0.000621371 miles = 1 meter
+         
+         # accounting for potential negative times
+         TravelTime_Sec = as.numeric(ifelse(Event_Time > lag(Departure_Time),
+                                            Event_Time - lag(Departure_Time),
+                                            NA
+                                           )
+                                    ),
+         TravelTime_Hr = TravelTime_Sec / 3600, # 3,600 seconds in 1 hour
+         
+         # accounting for potential negative or zero travel times
+         SpeedAvg_Mph = ifelse(TravelTime_Hr > 0,
+                               TravelDistance_Mi / TravelTime_Hr,
+                               NA
+                              ),
+         
+         Start_ID = lag(Stop_ID),
+         Start_Desc = lag(Stop_Desc),
+         StartStop_ID = ifelse(is.na(Start_ID),
+                               NA,
+                               paste(Start_ID, Stop_ID, sep = "--")
+                              )
+        ) %>% 
+  as.data.frame()
+
+
+# rm(AllDays_AddVars)
+str(AllDays_BusDay)
+
+summary(AllDays_BusDay)
+
+View(tail(AllDays_BusDay, 500))
+
+```
+
+
+Stats for StartStop_ID.
+```{r}
+
+StartStopStats <- group_by(AllDays_BusDay,
+                           StartStop_ID
+                          ) %>% 
+  summarise(TravelDistance_Mi_Mean = mean(TravelDistance_Mi, na.rm = TRUE),
+            TravelDistance_Mi_Med = median(TravelDistance_Mi, na.rm = TRUE),
+            TravelDistance_Mi_Cnt = sum(!is.na(TravelDistance_Mi)),
+            
+            TravelTimeSec_Mean = mean(TravelTime_Sec, na.rm = TRUE),
+            TravelTimeSec_Med = median(TravelTime_Sec, na.rm = TRUE),
+            TravelTimeSec_Cnt = sum(!is.na(TravelTime_Sec)),
+
+            TravelTimeHr_Mean = mean(TravelTime_Hr, na.rm = TRUE),
+            TravelTimeHr_Med = median(TravelTime_Hr, na.rm = TRUE),
+            TravelTimeHr_Cnt = sum(!is.na(TravelTime_Hr))
+           )
+
+View(head(StartStopStats, 50))
+
+```
+
+
+Join StartStopStats with AllDays_BusDay
+```{r}
+
+AllDays_BusDay2 <- left_join(AllDays_BusDay,
+                             StartStopStats,
+                             by = c("StartStop_ID" = "StartStop_ID")
+                            )
+
+dim(AllDays_BusDay)
+dim(AllDays_BusDay2)
+
+# rm(AllDays_BusDay)
+# rm(StartStopStats)
+str(AllDays_BusDay2)
+summary(AllDays_BusDay2)
+
+View(filter(AllDays_BusDay2,
+            # is.na(TravelDistance_Mi) &
+            StartStop_ID == "5002206--5002207"
+            # TravelDistance_Mi_Mean = 0.1312205
+            # TravelDistance_Mi_Med = 0.09659091
+           )
+    )
+
+View(filter(AllDays_BusDay2,
+            between(RowNum_OG, 1488, 1508)  # 1498
+           )
+    )
+
+```
+
+
+Feature engineering.
+
+Creating a BusEventRoute row number, and a RouteAlt_Lag1 indicator for future identification purposes. 
+```{r}
+
+AllDays_BusDayRoute <- group_by(AllDays_BusDay,
+                                Bus_ID,
+                                Event_Time_Date,
+                                Route
+                               ) %>% 
+  mutate(RouteAlt_Lag1 = lag(RouteAlt)  # used in future analyses to identify Route changes
+         # Odometer_Distance_Lag1 = lag(Odometer_Distance),
+         # 
+         # # accounting for potential negative distances
+         # TravelDistance_Ft = ifelse(Odometer_Distance >= Odometer_Distance_Lag1,
+         #                            Odometer_Distance - Odometer_Distance_Lag1,
+         #                            NA
+         #                           ),
+         # TravelDistance_Mi = TravelDistance_Ft / 5280, #5,280 feet in 1 mile
+         # 
+         # # accounting for potential negative times
+         # TravelTime_Sec = as.numeric(ifelse(Event_Time >= lag(Departure_Time),
+         #                                    Event_Time - lag(Departure_Time),
+         #                                    NA
+         #                                   )
+         #                            ),
+         # TravelTime_Hr = TravelTime_Sec / 3600, # 3,600 seconds in 1 hour
+         # 
+         # # accounting for potential negative or zero travel times
+         # SpeedAvg_Mph = ifelse(TravelTime_Hr > 0,
+         #                       TravelDistance_Mi / TravelTime_Hr,
+         #                       NA
+         #                      )
+        ) %>% 
+  as.data.frame()
+
+# rm(AllDays_BusDay)
+str(AllDays_BusDayRoute)
+
+```
+
+
+Feature engineering.
+
+Calculating a variable to know if the RouteAlt changed. Could be useful in helping identifying weirdness in calculated distances and speeds.
+```{r}
+
+AllDays_DirChange <- AllDays_BusDayRoute %>% 
+  mutate(DirChange = ifelse(RouteAlt == RouteAlt_Lag1,
+                            "Same",
+                            "Change"
+                           ),
+         DirChange2 = factor(ifelse(is.na(DirChange),
+                                    "Change",
+                                    DirChange
+                                   )
+                            )
+        )
+
+# rm(AllDays_BusDayRoute)
+str(AllDays_DirChange)
+
+```
+
+
+Re-ordering the variables to ease with comprehension.
+```{r}
+
+AllDays_NewOrder <-  select(AllDays_DirChange,
+                            RowNum_OG,
+                            group,
+                            BusDay_EventNum,
+                            Bus_ID,
+                            Route,
+                            RouteAlt,
+                            # RouteAlt_Lag1,
+                            DirChange2,
+                            Route_Direction,
+                            Stop_Sequence,
+                            Start_ID,
+                            Start_Desc,
+                            Stop_ID,
+                            Stop_Desc,
+                            StartStop_ID,
+                            Event_Type,
+                            Event_Description,
+                            Event_Time_Yr,
+                            Event_Time_Mth,
+                            Event_Time_Date,
+                            Event_Time_Day,
+                            Event_Time_Hr,
+                            Event_Time_HrGroup,
+                            Event_Time_Min,
+                            Event_Time,
+                            Departure_Time,
+                            Dwell_Time,
+                            Dwell_Time2,
+                            Delta_Time,
+                            Latitude,
+                            Longitude,
+                            Heading,
+                            Odometer_Distance,
+                            Odometer_Distance_Lag1,
+                            Odometer_Distance_Mi,
+                            TravelDistance_Ft,
+                            TravelDistance_Mi,
+                            TravelDistance_Mi_Hvrs,
+                            TravelTime_Sec,
+                            TravelTime_Hr,
+                            SpeedAvg_Mph
+                           )
+
+# rm(AllDays_DirChange)
+str(AllDays_NewOrder)
+
+View(head(AllDays_NewOrder, 500))
+View(tail(AllDays_NewOrder, 500))
+
+```
+
+
+Summarizing the data to help spot anomolies.
+```{r}
+
+summary(AllDays_NewOrder)
+
+```
+
+
+Investigation of Dwell_Time2 (how long the bus is at a stop).
+
+Differences between Dwell_Time (by WMATA) and Dwell_Time2 (by me) appear to be due to switches in RouteAlt. WMATA calculates Dwell_Time by an unknown process. The WMATA calculation is equal to my calculation, except for the records immedaitely before and after a RouteAlt switch (DirChange2).
+```{r}
+
+View(filter(AllDays_NewOrder,
+            Dwell_Time != Dwell_Time2
+           )
+    )
+
+
+# Examples where the Dwell_Time and Dwell_Time2 are different
+View(filter(AllDays_NewOrder,
+            ( (RowNum_OG >= 65 & RowNum_OG <= 85) | # 75
+                (RowNum_OG >= 162 & RowNum_OG <= 192) | # 172
+                (RowNum_OG >= 431952 & RowNum_OG <= 431972) | # 431962
+                (RowNum_OG >= 434595 & RowNum_OG <= 434615) # 434605  --  this record is NOT a route switch, but does has a Sequence switch (Me: should there really be a route switch here?)
+            )
+           )
+    )
+
+```
+
+
+Investigation of Dwell_Time2 (how long the bus is at a stop).
+
+First, create some "rank" stats.
+View(DT2_Pctiles): 95% of Dwell_Time2s are <= 23 seconds...but some weird (e.g., nearly 2 hour Dwell_Time2s exist).
+```{r}
+
+DwellTime2_Ntile <- as.data.frame(AllDays_NewOrder$Dwell_Time2) %>% 
+  mutate(Pctile = ntile(AllDays_NewOrder$Dwell_Time2, 100),
+         MinR = min_rank(AllDays_NewOrder$Dwell_Time2),
+         PctR = percent_rank(AllDays_NewOrder$Dwell_Time2),
+         PctR_Round = round(PctR, 2)
+        ) 
+
+colnames(DwellTime2_Ntile)[1] <- "Dwell_Time2"
+str(DwellTime2_Ntile)
+
+DwellTime2_Ntile_Rows <- nrow(DwellTime2_Ntile)
+
+View(tail(DwellTime2_Ntile, 500))
+
+
+DwellTime2_Pctiles <- group_by(DwellTime2_Ntile,
+                               PctR_Round
+                              ) %>% 
+  summarise(
+    MinDwellAtPctile = min(Dwell_Time2),
+    CntsAtPctile = n(),
+    PctsAtPctile = CntsAtPctile / DwellTime2_Ntile_Rows
+  ) %>% 
+  mutate(CumSumPAtP = cumsum(PctsAtPctile)
+        )
+
+View(DwellTime2_Pctiles)
+
+```
+
+
+Investigation of Dwell_Time2 (how long the bus is at a stop).
+
+Histogram of Dwell_Time2.
+```{r}
+
+DwellTime2_HistDen <- ggplot(AllDays_NewOrder, aes(x = Dwell_Time2, y = ..density..)) +
+  geom_histogram(binwidth = 1, fill = "lightblue", colour = "grey60", size = 0.2) +
+  geom_line(stat = "density", colour = "red") +
+  coord_cartesian(xlim = c(1, 25), ylim = c(0, 0.05)
+                 ) +
+  xlab("Time a Bus Stays at a Stop (sec)") + 
+  ylab("Density") + 
+  #  theme(legend.position="none") + 
+  ggtitle(expression(atop("Variation in How Long a Bus Stays at a Stop"
+                          # ,atop(italic("xxxxx"),"")
+                         )
+                    )
+         )
+
+DwellTime2_HistDen
+
+```
+
+
+Investigation of Dwell_Time2 (how long the bus is at a stop).
+
+Looking at some weirdly long Dwell_Time2 values.
+```{r}
+
+View(arrange(AllDays_NewOrder,
+             desc(Dwell_Time2)
+            )
+    )
+
+
+# examples of extremely large Dwell_Time2s
+View(filter(AllDays_NewOrder,
+            (RowNum_OG >= 292669 & RowNum_OG <= 292689) | # 292679
+                (RowNum_OG >= 531057 & RowNum_OG <= 531077) | # 531067
+                (RowNum_OG >= 1388627 & RowNum_OG <= 1388647) | # 1388637
+                (RowNum_OG >= 1645711 & RowNum_OG <= 1645731) # 1645721
+           )
+    )
+
+
+View(filter(AllDays_NewOrder,
+            Dwell_Time2 == 0
+           )
+    )
+
+```
+
+
+Investigation of Delta_Time (how early or late the bus is).
+
+View(DT2_Pctiles): 94% of Delta_Time values are between -236 seconds and 1,259 seconds. Roughly 66% of records are within 5 min late and 5 min early...but some weird (e.g., almost 50 minute late or 40 minute early) Delta_Times exist.
+
+Note that Delta_Time is the difference from the scheduled bus arrival. So if two buses are scheduled to arrive at a destination at 10:00pm and 10:20pm, and if the 10:20pm bus has a Delta_Time of 5 minutes, there are 25 minutes between bus arrivals at the stop.
+
+Also note that based on a comment at https://planitmetro.com/2016/11/16/data-download-metrobus-vehicle-location-data/, the Delta_Time values don't appear to coincide with published bus schedules (e.g., the X2 departing every 8 minutes during peak hours).
+```{r}
+
+DeltTime_Ntile <- as.data.frame(AllDays_NewOrder$Delta_Time) %>% 
+  mutate(Pctile = ntile(AllDays_NewOrder$Delta_Time, 100),
+         MinR = min_rank(AllDays_NewOrder$Delta_Time),
+         PctR = percent_rank(AllDays_NewOrder$Delta_Time),
+         PctR_Round = round(PctR, 2)
+        ) 
+
+colnames(DeltTime_Ntile)[1] <- "Delta_Time"
+str(DeltTime_Ntile)
+
+DeltTime_Ntile_Rows <- nrow(DeltTime_Ntile)
+
+View(tail(DeltTime_Ntile, 500))
+
+
+DeltTime_Pctiles <- group_by(DeltTime_Ntile,
+                             PctR_Round
+                            ) %>% 
+  summarise(
+    MinDeltTimeAtPctile = min(Delta_Time),
+    CntsAtPctile = n(),
+    PctsAtPctile = CntsAtPctile / DeltTime_Ntile_Rows
+  ) %>% 
+  mutate(CumSumPAtP = cumsum(PctsAtPctile)
+        )
+
+View(DeltTime_Pctiles)
+DeltTime_Pctiles
+
+# ~66% of rows are between 5 min late and 5 min early
+nrow(filter(AllDays_NewOrder,
+            Delta_Time >= -300 &
+              Delta_Time <= 300
+           )
+    ) / nrow(AllDays_NewOrder)
+
+
+# examples of weird large Delta_Times
+View(filter(AllDays_NewOrder,
+            Delta_Time < -4202 |
+              Delta_Time > 1705
+           ) %>% 
+       arrange(desc(Delta_Time)
+              )
+    )
+
+```
+
+
+Investigation of Delta_Time (how early or late the bus is).
+
+Delta_Time histogram.
+```{r}
+
+DeltTime_HistDen <- ggplot(AllDays_NewOrder, aes(x = (Delta_Time / 60),
+                                                 y = ..density..
+                                                )
+                          ) +
+  geom_histogram(binwidth = (5/60), fill = "lightblue", colour = "grey60", size = 0.2) +
+  geom_line(stat = "density", colour = "red") +
+  coord_cartesian(xlim = c(-5, 5)) +
+  xlab("Bus Lateness (min)") + 
+  ylab("Density") + 
+  #  theme(legend.position="none") + 
+  ggtitle(expression(atop("Variation in How Early/Late a Bus Is",
+                          atop(italic("(positive values are late arrivals)"),
+                               ""
+                              )
+                         )
+                    )
+         )
+
+DeltTime_HistDen
+
+```
+
+
+Investigation of Delta_Time (how early or late the bus is).
+
+Delta_Time boxplot.
+```{r}
+
+# Count_Values is needed to display the medians on the box plots
+Count_Values <- ddply(AllDays_NewOrder,
+                      .(Event_Time_HrGroup),
+                      summarise,
+                      Value_Counts = median(Delta_Time / 60, na.rm = TRUE)
+                     )
+
+DeltTime_BoxPlot <- ggplot(AllDays_NewOrder,
+                           aes(factor(Event_Time_HrGroup),
+                               Delta_Time / 60,
+                               fill = factor(Event_Time_HrGroup)
+                              )
+                          ) + 
+  geom_boxplot(outlier.colour="red", notch=TRUE) + 
+  # coord_cartesian(ylim = c(-300, 1200)) +
+  coord_cartesian(ylim = c(-5, 20)) +
+  geom_text(data = Count_Values,
+            aes(y = Value_Counts,
+                label = format(round(Value_Counts, digits = 1),
+                               nsmall = 1
+                              )
+               ),
+            size = 3,
+            vjust = -0.5
+           ) +
+  xlab("Hour Group") + 
+  ylab("Bus Lateness (minutes)") + 
+  theme(legend.position="none", axis.text.x = element_text(angle=45)) + 
+  #theme(legend.position="right", axis.text.x = element_blank()) + 
+  ggtitle(expression(atop("How Early/Late is the Bus (by Hour Group)",
+                          atop(italic("(positive values are late arrivals)"),
+                               ""
+                              )
+                         )
+                    )
+         )
+
+DeltTime_BoxPlot
+
+```
+
+
+Investigation of Delta_Time (how early or late the bus is).
+
+Exploring "extreme" Delta_Times.  First let's get some "rank" stats.
+```{r}
+
+View(DeltTime_Pctiles)
+DeltTime_Pctiles
+
+
+DeltTimeAbs_Ntile <- as.data.frame(abs(AllDays_NewOrder$Delta_Time)) %>% 
+  mutate(Pctile = ntile(abs(AllDays_NewOrder$Delta_Time), 100),
+         MinR = min_rank(abs(AllDays_NewOrder$Delta_Time)),
+         PctR = percent_rank(abs(AllDays_NewOrder$Delta_Time)),
+         PctR_Round = round(PctR, 2)
+        ) 
+
+colnames(DeltTimeAbs_Ntile)[1] <- "Delta_Time_Abs"
+str(DeltTimeAbs_Ntile)
+
+DeltTimeAbs_Ntile_Rows <- nrow(DeltTimeAbs_Ntile)
+
+View(tail(DeltTimeAbs_Ntile, 500))
+
+
+DeltTimeAbs_Pctiles <- group_by(DeltTimeAbs_Ntile,
+                                PctR_Round
+                               ) %>% 
+  summarise(
+    MinDeltTimeAtPctile = min(Delta_Time_Abs),
+    CntsAtPctile = n(),
+    PctsAtPctile = CntsAtPctile / DeltTime_Ntile_Rows
+  ) %>% 
+  mutate(CumSumPAtP = cumsum(PctsAtPctile)
+        )
+
+View(DeltTimeAbs_Pctiles)
+DeltTimeAbs_Pctiles
+
+```
+
+
+Investigation of Delta_Time (how early or late the bus is).
+
+Exploring "extreme" Delta_Times.  Then let's calculate the percentage of buses that are 10 minutes (or more) late/early.
+```{r}
+
+HrGroup_DeltaTime_All <- group_by(AllDays_NewOrder,
+                                  Event_Time_HrGroup
+                                 ) %>% 
+  summarise(EventAll_Cnt = n()
+           )
+
+str(HrGroup_DeltaTime_All)
+View(HrGroup_DeltaTime_All)
+
+
+HrGroup_DeltaTime_Above10Min <- filter(AllDays_NewOrder,
+                                       abs(Delta_Time) >= 600
+                                      ) %>% 
+  group_by(Event_Time_HrGroup) %>% 
+  summarise(EventAbove10_Cnt = n()
+           )
+
+str(HrGroup_DeltaTime_Above10Min)
+View(HrGroup_DeltaTime_Above10Min)
+
+
+HrGroup_DeltaTimeCompare <- inner_join(HrGroup_DeltaTime_Above10Min,
+                                       HrGroup_DeltaTime_All,
+                                       by = c("Event_Time_HrGroup" = "Event_Time_HrGroup")
+                                      ) %>% 
+  mutate(PctEventsAbove10 = EventAbove10_Cnt / EventAll_Cnt)
+
+View(HrGroup_DeltaTimeCompare)
+
+```
+
+
+Investigation of Delta_Time (how early or late the bus is).
+
+Quickly plot these "extreme" Delta_Times. 
+```{r}
+
+DeltTime_Above10_Cols <- ggplot(HrGroup_DeltaTimeCompare,
+                                aes(factor(Event_Time_HrGroup),
+                                    PctEventsAbove10
+                                   )
+                               ) +
+  geom_col(fill = "lightblue", colour = "grey60", size = 0.2) +
+  geom_text(aes(label = format(round(PctEventsAbove10, digits = 2),
+                               nsmall = 2
+                              )
+               ),
+            size = 3,
+            nudge_y = (HrGroup_DeltaTimeCompare$PctEventsAbove10 * -0.1)
+           ) +
+  # coord_cartesian(xlim = c(-5, 5)) +
+  xlab("Hour Group") + 
+  ylab("Percent of All Bus Arrivals") +
+  theme(legend.position="none", axis.text.x = element_text(angle=45)) +
+  ggtitle(expression(atop("When is a Bus 10+ Minutes Late/Early"
+                          # ,atop(italic("positive values are late arrivals"),
+                          #      ""
+                          #     )
+                         )
+                    )
+         )
+
+DeltTime_Above10_Cols
+
+```
+
+
+Quick investigation on the relationship between Dwell_Time2 (the time a bus is at a stop) and Delta_Time (how early/late the bus is).
+
+Correlation.
+```{r}
+
+DwellTDeltaT_Corr <- as.matrix(cor(x = AllDays_NewOrder$Dwell_Time2,
+                                   y = AllDays_NewOrder$Delta_Time,
+                                   use = "pairwise"
+                                  )
+                               )
+
+DwellTDeltaT_Corr
+
+```
+
+
+Quick investigation on the relationship between Dwell_Time2 (the time a bus is at a stop) and Delta_Time (how early/late the bus is).
+
+First, let's get create a function to plot the liner model equation.
+```{r}
+
+lm_eqn <- function(df, y, x){
+  m <- lm(y ~ x, df)
+  
+  l <- list(a = format(coef(m)[1], digits = 2),
+            b = format(abs(coef(m)[2]), digits = 2),
+            s1 = ifelse(test = coef(m)[2] > 0,
+                        yes = "+",
+                        no = "-"
+                       ),
+            r2 = format(summary(m)$r.squared,
+                        digits = 3
+                       )
+           )
+  
+  eq <- substitute(italic(y) == a~~s1~~b %.% italic(x)*","~~italic(r)^2~"="~r2,
+                   l
+                  )
+  
+  as.character(as.expression(eq)
+              )             
+}
+
+```
+
+
+Quick investigation on the relationship between Dwell_Time2 (the time a bus is at a stop) and Delta_Time (how early/late the bus is).
+
+Next, let's get a sample of data for plotting. Let's do this for the full dataset (AllDays_NewOrder).
+```{r}
+
+AllDays_NewOrder_10PctSamp <- sample_frac(AllDays_NewOrder, 0.1) %>% 
+  select(Delta_Time,
+         Dwell_Time2
+        ) %>% 
+  mutate(DataSet = "AllData")
+
+str(AllDays_NewOrder_10PctSamp)
+
+```
+
+
+Quick investigation on the relationship between Dwell_Time2 (the time a bus is at a stop) and Delta_Time (how early/late the bus is).
+
+Let's also get a sample of data for plotting, but with a datset that removes outliers.
+```{r}
+
+View(DeltTime_Pctiles)
+View(DwellTime2_Pctiles)
+
+AllDays_NewOrder_NoExtremes_10PctSamp <- filter(AllDays_NewOrder,
+                                                between(Delta_Time, -402, 1705) & # removes about 2% of Delta_Time values
+                                                  between(Dwell_Time2, 1, 63)  # removes about 2% of Dwell_Time2 values
+                                               ) %>% 
+  sample_frac(0.1) %>% 
+  select(Delta_Time,
+         Dwell_Time2
+        ) %>% 
+  mutate(DataSet = "OutliersRemoved")
+
+str(AllDays_NewOrder_NoExtremes_10PctSamp)
+
+```
+
+
+Quick investigation on the relationship between Dwell_Time2 (the time a bus is at a stop) and Delta_Time (how early/late the bus is).
+
+Plotting the data from the dataset that does not remove outliers.
+```{r}
+
+DwellTDeltaT_Scatter <- ggplot(AllDays_NewOrder_10PctSamp,
+                               aes(Dwell_Time2, Delta_Time)
+                              ) +
+  geom_point(shape = 1, alpha = 0.5) +
+  scale_shape(solid = FALSE) +
+  geom_smooth(method = "lm", colour = "red") +
+  # xlab("Time at Stop (sec)") + 
+  # ylab("Lateness (sec)") +
+  annotate(label = lm_eqn(df = AllDays_NewOrder_10PctSamp,
+                          y = AllDays_NewOrder_10PctSamp$Delta_Time,
+                          x = AllDays_NewOrder_10PctSamp$Dwell_Time2
+                         ),
+           x = 2200,
+           y = 600,
+           geom = "text",
+           size = 3,
+           colour = "red",
+           parse = TRUE
+          ) +
+  labs(title = "Lateness vs Time at Stop",
+       subtitle = "(no outliers removed)",
+       x = "Time at Stop (sec)",
+       y = "Lateness (sec)"
+      )
+  # ggtitle(expression(atop("Lateness vs Time at Stop"
+  #                         ,atop(italic("(no outliers removed)"),
+  #                               ""
+  #                              )
+  #                        )
+  #                   )
+  #        )
+# +
+#   geom_jitter()
+
+DwellTDeltaT_Scatter
+
+```
+
+
+Quick investigation on the relationship between Dwell_Time2 (the time a bus is at a stop) and Delta_Time (how early/late the bus is).
+
+Plotting the data from the dataset that does remove outliers.
+```{r}
+
+DwellTDeltaT_Scatter_NoExtremes <- ggplot(AllDays_NewOrder_NoExtremes_10PctSamp,
+                                          aes(Dwell_Time2, Delta_Time)
+                                         ) +
+  geom_point(shape = 1, alpha = 0.5) +
+  scale_shape(solid = FALSE) +
+  geom_smooth(method = "lm", colour = "blue") +
+  # xlab("Time at Stop (sec)") + 
+  # ylab("Lateness (sec)") +
+  annotate(label = lm_eqn(df = AllDays_NewOrder_NoExtremes_10PctSamp,
+                          y = AllDays_NewOrder_NoExtremes_10PctSamp$Delta_Time,
+                          x = AllDays_NewOrder_NoExtremes_10PctSamp$Dwell_Time2
+                         ),
+           x = 50,
+           y = -475,
+           geom = "text",
+           size = 3,
+           colour = "blue",
+           parse = TRUE
+          ) +
+  labs(title = "Lateness vs Time at Stop",
+       subtitle = "(2% of outliers removed)",
+       x = "Time at Stop (sec)",
+       y = "Lateness (sec)"
+      )
+  # ggtitle(expression(atop("Lateness vs Time at Stop"
+  #                         ,atop(italic("(2% of outliers removed)"),
+  #                               ""
+  #                              )
+  #                        )
+  #                   )
+  #        )
+# +
+#   geom_jitter()
+
+DwellTDeltaT_Scatter_NoExtremes
+
+```
+
+
+Quick investigation on the relationship between Dwell_Time2 (the time a bus is at a stop) and Delta_Time (how early/late the bus is).
+
+Plotting the data from both datasets together.
+```{r}
+
+CombinedData <- rbind(AllDays_NewOrder_10PctSamp,
+                      AllDays_NewOrder_NoExtremes_10PctSamp
+                     )
+
+CombinedData$DataSet <- factor(CombinedData$DataSet)
+
+str(CombinedData)
+
+
+DwellTDeltaT_Scatter_Combined <- ggplot(CombinedData,
+                                        aes(x = Dwell_Time2,
+                                            y = Delta_Time,
+                                            colour = DataSet
+                                           )
+                                       ) +
+  geom_point(shape = 1, alpha = 0.5) +
+  scale_shape(solid = FALSE) +
+  coord_cartesian(xlim = c(0, 500), ylim = c(-1000, 2000)
+                 ) +
+  geom_smooth(data = filter(CombinedData,
+                            DataSet == "AllData"
+                           ),
+              method = "lm",
+              colour = "red"
+             ) +
+  geom_smooth(data = filter(CombinedData,
+                            DataSet == "OutliersRemoved"
+                           ),
+              method = "lm",
+              colour = "blue"
+             ) +
+  # facet_wrap( ~ DataSet, ncol = 2) +
+  annotate(label = lm_eqn(df = AllDays_NewOrder_10PctSamp,
+                          y = AllDays_NewOrder_10PctSamp$Delta_Time,
+                          x = AllDays_NewOrder_10PctSamp$Dwell_Time2
+                         ),
+           x = 300,
+           y = -600,
+           geom = "text",
+           size = 3,
+           colour = "red",
+           parse = TRUE
+          ) +
+  annotate(label = lm_eqn(df = AllDays_NewOrder_NoExtremes_10PctSamp,
+                          y = AllDays_NewOrder_NoExtremes_10PctSamp$Delta_Time,
+                          x = AllDays_NewOrder_NoExtremes_10PctSamp$Dwell_Time2
+                         ),
+           x = 300,
+           y = -800,
+           geom = "text",
+           size = 3,
+           colour = "blue",
+           parse = TRUE
+          ) +
+  theme(legend.position = "bottom") +
+  labs(title = "Lateness vs Time at Stop",
+       x = "Time at Stop (sec)",
+       y = "Lateness (sec)"
+      )
+  # ggtitle(expression(atop("Lateness vs Time at Stop"
+                          # ,atop(italic("2% of outliers removed"),
+                          #       ""
+                          #      )
+         #                 )
+         #            )
+         # )
+# +
+#   geom_jitter()
+
+DwellTDeltaT_Scatter_Combined
+
+```
+
+
+Investigation of TravelDistance_Mi.
+
+View(TravDistMi_Pctiles): 99% of TravelDistance_Mi are about 1 mile or less...but some weird TravelDistance_Mi values (e.g., 584 miles traveled) exist.
+```{r}
+
+TravDistMi_Ntile <- as.data.frame(AllDays_NewOrder$TravelDistance_Mi) %>% 
+  mutate(Pctile = ntile(AllDays_NewOrder$TravelDistance_Mi, 100),
+         MinR = min_rank(AllDays_NewOrder$TravelDistance_Mi),
+         PctR = percent_rank(AllDays_NewOrder$TravelDistance_Mi),
+         PctR_Round = round(PctR, 2)
+        ) 
+
+colnames(TravDistMi_Ntile)[1] <- "TravelDistance_Mi"
+str(TravDistMi_Ntile)
+
+TravDistMi_Ntile_Rows <- nrow(TravDistMi_Ntile)
+
+View(tail(TravDistMi_Ntile, 500))
+
+
+TravDistMi_Pctiles <- group_by(TravDistMi_Ntile,
+                               PctR_Round
+                              ) %>% 
+  summarise(
+    MinTravDistMiAtPctile = min(TravelDistance_Mi),
+    CntsAtPctile = n(),
+    PctsAtPctile = CntsAtPctile / TravDistMi_Ntile_Rows
+  ) %>% 
+  mutate(CumSumPAtP = cumsum(PctsAtPctile)
+        )
+
+View(TravDistMi_Pctiles)
+
+```
+
+
+Investigation of TravelDistance_Mi.
+
+Why are some TravelDistance_Mi "NA"? It looks like partially because the records are the first trip of the day (for that bus), so I purposefully set the distance to "NA". Another reason is due to the odometer recording a value less than the previous odometer recording. In most cases, I have no explanation for this - though I have observed about 67% of all instances where TravelDistance_Mi is NA (other than because it's the first record of the day) are instances where DirChange2 is "Change". This is weird and should be asked to WMATA.
+```{r}
+
+View(filter(AllDays_NewOrder,
+            is.na(TravelDistance_Mi)
+           )
+    )
+
+# These records are NA becuase the record is the first record of the day (the Event_Time_Date)
+View(filter(AllDays_NewOrder,
+            between(RowNum_OG, 326, 346) | # 336
+              between(RowNum_OG, 591, 611) | # 601
+              between(RowNum_OG, 845, 865) # 855
+           )
+    )
+
+# These records are NA becuase the current record odometer is less than the previous record odometer. Theoretically, this should NOT happen. Me: it appears that about 67% of all instances where TravelDistance_Mi is NA (other than because it's th first record of the day) are instances where DirChange2 is "Change". This is weird and should be asked to WMATA.
+View(filter(AllDays_NewOrder,
+            between(RowNum_OG, 194, 214) | # 204
+              between(RowNum_OG, 440, 460) | # 450
+              between(RowNum_OG, 478, 498) | # 488
+              between(RowNum_OG, 510, 530) # 520
+           )
+    )
+
+TestTable <- filter(AllDays_NewOrder,
+                    BusDay_EventNum != 1
+                   ) %>% 
+  mutate(TravelDistance_NA = as.factor(ifelse(is.na(TravelDistance_Mi),
+                                              "True",
+                                              "False"
+                                             )
+                                      )
+        ) %>%
+  group_by(DirChange2,TravelDistance_NA) %>%
+  summarise(TravDistMi_NACnts = n()
+           )
+
+TestTable
+
+TestTable_Spread <- as.data.frame(spread(TestTable,
+                                         TravelDistance_NA,
+                                         TravDistMi_NACnts
+                                        )
+                                 ) %>% 
+  select(False,
+         True
+        )
+
+row.names(TestTable_Spread) <- c("Change", "Same")
+str(TestTable_Spread)
+TestTable_Spread
+
+prop.table(as.table(as.matrix(TestTable_Spread)
+                   ),
+           1
+          )
+
+prop.table(as.table(as.matrix(TestTable_Spread)
+                   ),
+           2
+          )
+
+```
+
+
+Investigation of TravelDistance_Mi.
+
+Let's look at just the TravelDistance_Mi values that are NOT "NA".
+```{r}
+
+TravelDistance_Mi_NoNA <- filter(AllDays_NewOrder,
+                                 # TravelDistance_Mi != 0 &
+                                 !is.na(TravelDistance_Mi)
+                                )
+
+dim(AllDays_NewOrder)
+dim(TravelDistance_Mi_NoNA)
+nrow(AllDays_NewOrder) - nrow(TravelDistance_Mi_NoNA)
+
+str(TravelDistance_Mi_NoNA)
+summary(TravelDistance_Mi_NoNA)
+
+```
+
+
+Investigation of TravelDistance_Mi.
+
+Let's plot just the TravelDistance_Mi values that are NOT "NA".
+```{r}
+
+TravDistMi_HistDen <- ggplot(TravelDistance_Mi_NoNA, aes(x = TravelDistance_Mi,
+                                                         y = ..density..
+                                                        )
+                            ) +
+  geom_histogram(binwidth = 0.05, fill = "lightblue", colour = "grey60", size = 0.2) +
+  geom_line(stat = "density", colour = "red") +
+  coord_cartesian(xlim = c(0, 1.5), ylim = c(0, 3.5)
+                 ) +  # 0.0001893939 is the value at the 11th percentile (& the 1st percentile with non-zero values)
+                      # 1.0812500000 is the 99th percentile
+  xlab("Travel Distance (miles)") + 
+  ylab("Density") + 
+  #  theme(legend.position="none") + 
+  ggtitle(expression(atop("Variation in Distance Between Stops"
+                          # ,atop(italic("xxxxx"),"")
+                         )
+                    )
+         )
+
+TravDistMi_HistDen
+
+```
+
+Investigation of TravelDistance_Mi.
+
+Looking at the extremely large TravelDistance_Mi values. Some (aprox 27%) of TravelDistance_Mi values > 1 mile are when the DirChange2 changes...but what about the other ~73%?
+```{r}
+
+
+# examples of weirdly large TravelDistance_Mi
+View(filter(AllDays_NewOrder,
+            TravelDistance_Mi > 1 # 1.0812500000 is the 99th percentile
+           ) %>% 
+       arrange(desc(TravelDistance_Mi)
+              )
+    )
+
+
+# Why are these extremes?
+View(filter(AllDays_NewOrder,
+              between(RowNum_OG, 494044, 494064) | # 494054
+              between(RowNum_OG, 494273, 494293) | # 494283
+              between(RowNum_OG, 494626, 494646) | # 494636
+              between(RowNum_OG, 1610156, 1610176) | # 1610166
+              between(RowNum_OG, 2073074, 2073094) # 2073084
+           )
+    )
+
+# Before Removing Runs
+View(filter(AllDays_Sorted,
+            between(RowNum_OG, 494044, 494064) | # 494054
+              between(RowNum_OG, 494273, 494293) | # 494283
+              between(RowNum_OG, 494626, 494646) | # 494636
+              between(RowNum_OG, 1610156, 1610176) | # 1610166
+              between(RowNum_OG, 2073074, 2073094) # 2073084
+           )
+    )
+
+# After Removing Runs
+View(filter(AllDays_FirstStopID,
+            between(RowNum_OG, 494044, 494064) | # 494054
+              between(RowNum_OG, 494273, 494293) | # 494283
+              between(RowNum_OG, 494626, 494646) | # 494636
+              between(RowNum_OG, 1610156, 1610176) | # 1610166
+              between(RowNum_OG, 2073074, 2073094) # 2073084
+           )
+    )
+
+
+ExtremeTravDist <- filter(AllDays_NewOrder,
+                          !is.na(TravelDistance_Mi)
+                         ) %>% 
+  mutate(TravDist_Extreme = ifelse(TravelDistance_Mi > 1,
+                                   "True",
+                                   "False"
+                                  )
+                          ) %>% 
+  group_by(DirChange2, TravDist_Extreme) %>% 
+  summarise(TravDistMI_ExtCnts = n()
+           )
+
+ExtremeTravDist
+
+
+ExtremeTravDist_Spread <- as.data.frame(spread(ExtremeTravDist,
+                                               TravDist_Extreme,
+                                               TravDistMI_ExtCnts
+                                              )
+                                       ) %>% 
+  select(False,
+         True
+        )
+
+row.names(ExtremeTravDist_Spread) <- c("Change", "Same")
+str(ExtremeTravDist_Spread)
+ExtremeTravDist_Spread
+
+prop.table(as.table(as.matrix(ExtremeTravDist_Spread)
+                   ),
+           1
+          )
+
+prop.table(as.table(as.matrix(ExtremeTravDist_Spread)
+                   ),
+           2
+          )
+
+
+DistByBus <- group_by(AllDays_NewOrder,
+                      Bus_ID
+                     ) %>% 
+  summarise(DistTrav_Mean = mean(TravelDistance_Mi, na.rm = TRUE),
+            DistTrav_Med = median(TravelDistance_Mi, na.rm = TRUE)
+           )
+
+View(arrange(DistByBus,
+             desc(DistTrav_Med)
+            )
+    )
+
+# head(AllDays_NewOrder)
+# example of extremely small TravelDistance_Mi values (looks like the odometer wasn't functioning)
+View(filter(AllDays_NewOrder,
+            Bus_ID == 6111 |
+              Bus_ID == 7201 |
+              Bus_ID == 8058
+           ) %>% 
+       arrange(Bus_ID, Event_Time)
+    )
+
+```
+
+
+Investigation of TravelDistance_Mi & TravelDistance_Mi_Hvrs & TravelDistance_Mi_New.
+
+TravelDistance_Mi_Hvrs is based on the Haversine (great circle) distance, and TravelDistance_Mi_New uses TravelDistance_Mi_Hvrs when TravelDistance_Mi == 0 or when TravelDistance_Mi is > 1.0812500000 (the 99th percentile of TravelDistance_Mi)
+```{r}
+
+AllDays_NewTravelDist <- mutate(AllDays_NewOrder,
+                                TravelDistance_Mi_New = ifelse(TravelDistance_Mi == 0,
+                                                               TravelDistance_Mi_Hvrs,
+                                                        ifelse(TravelDistance_Mi > 1.0812500000, # 1.0812500000 is the 99th percentile
+                                                               TravelDistance_Mi_Hvrs,
+                                                               TravelDistance_Mi
+                                                              )),
+                                SpeedAvg_Mph2 = ifelse(TravelTime_Hr > 0,
+                                                       TravelDistance_Mi_New / TravelTime_Hr,
+                                                       NA
+                                                      )
+                               )
+
+
+str(AllDays_NewTravelDist)
+
+```
+
+
+Investigation of TravelDistance_Mi & TravelDistance_Mi_Hvrs & TravelDistance_Mi_New.
+
+Quick summary and then correlation calculation.
+```{r}
+
+summary(select(AllDays_NewTravelDist,
+               TravelDistance_Mi,
+               TravelDistance_Mi_Hvrs,
+               TravelDistance_Mi_New
+              )
+       )
+
+TravDist_Corr <- as.matrix(cor(x = AllDays_NewTravelDist$TravelDistance_Mi_Hvrs,
+                               y = AllDays_NewTravelDist$TravelDistance_Mi,
+                               use = "pairwise"
+                              )
+                          )
+
+TravDist_Corr
+
+```
+
+
+Investigation of TravelDistance_Mi & TravelDistance_Mi_Hvrs & TravelDistance_Mi_New.
+
+Graphing the two methods of calculating TravelDistance_Mi.
+```{r}
+
+AllDays_NewTravelDist_10Pct <- filter(AllDays_NewTravelDist,
+                                      !is.na(TravelDistance_Mi)
+                                     ) %>% 
+  mutate(DistCalcMethod = factor(ifelse(TravelDistance_Mi == 0 |
+                                          TravelDistance_Mi > 1.0812500000,
+                                        "Outlier",
+                                        "Normal"
+                                       )
+                                )
+        ) %>% 
+  sample_frac(0.1)
+
+
+TravDist_MiVsCalc <- ggplot(AllDays_NewTravelDist_10Pct,
+                            aes(x = TravelDistance_Mi_Hvrs,
+                                y = TravelDistance_Mi,
+                                colour = DistCalcMethod
+                               )
+                           ) +
+  geom_point(shape = 1, alpha = 0.5) +
+  scale_shape(solid = FALSE) +
+  geom_smooth(method = "lm", colour = "blue") +
+  geom_abline(intercept = 0, slope = 1, colour = "red") +
+  # coord_cartesian(xlim = c(0, 70), ylim = c(0,70)
+  #                ) +
+  # scale_x_continuous(breaks = seq(0, 70, 10)
+  #                   ) +
+  # scale_y_continuous(breaks = seq(0, 70, 10)
+  #                   ) +
+  coord_cartesian(xlim = c(0, 1.5), ylim = c(0, 1.5)
+                 ) +
+  scale_x_continuous(breaks = seq(0, 1.5, 0.25)
+                    ) +
+  scale_y_continuous(breaks = seq(0, 1.5, 0.25)
+                    ) +
+  theme(legend.position = "bottom") +
+  annotate(label = lm_eqn(df = AllDays_NewTravelDist_10Pct,
+                          y = AllDays_NewTravelDist_10Pct$TravelDistance_Mi,
+                          x = AllDays_NewTravelDist_10Pct$TravelDistance_Mi_Hvrs
+                         ),
+           # x = 62,
+           # y = 20,
+           x = 0.95,
+           y = 1.45,
+           geom = "text",
+           size = 3,
+           colour = "blue",
+           parse = TRUE
+          ) +
+  annotate(label = "Reference Line (slope = 1)",
+           # x = 16,
+           # y = 30,
+           x = 1.38,
+           y = 1.13,
+           geom = "text",
+           size = 3,
+           colour = "red"
+          ) +
+  labs(title = "TravelDistance_Mi vs. TravelDistance_Mi_Hvrs",
+       x = "TravelDistance_Mi_Hvrs",
+       y = "TravelDistance_Mi"
+      )
+# +
+#   geom_jitter()
+
+TravDist_MiVsCalc
+
+```
+
+
+Investigation of TravelDistance_Mi & TravelDistance_Mi_Hvrs & TravelDistance_Mi_New.
+
+Graphing test with rbokeh.
+```{r}
+
+TravDist_MiVsCalc_Bokeh <- figure(data = AllDays_NewTravelDist_10Pct,
+                                  xlim = c(0, 1.5),
+                                  ylim = c(0, 1.5),
+                                  legend_location = "bottom_right"
+                                 ) %>% 
+  ly_points(x = TravelDistance_Mi_Hvrs,
+            y = TravelDistance_Mi,
+            color = DistCalcMethod,
+            hover = c(TravelDistance_Mi_Hvrs, TravelDistance_Mi)
+           ) %>% 
+  ly_abline(a = 0, b = 1, color = "red")
+
+TravDist_MiVsCalc_Bokeh
+
+```
+
+
+Investigation of TravelDistance_Mi_New.
+
+~23% of rides are still showing as less than 0.1 miles of TravelDistance_Mi_New.
+```{r}
+
+summary(AllDays_NewTravelDist$TravelDistance_Mi_New)
+
+TravDistMiNew_Ntile <- as.data.frame(AllDays_NewTravelDist$TravelDistance_Mi_New) %>% 
+  mutate(Pctile = ntile(AllDays_NewTravelDist$TravelDistance_Mi_New, 100),
+         MinR = min_rank(AllDays_NewTravelDist$TravelDistance_Mi_New),
+         PctR = percent_rank(AllDays_NewTravelDist$TravelDistance_Mi_New),
+         PctR_Round = round(PctR, 2)
+        ) 
+
+colnames(TravDistMiNew_Ntile)[1] <- "TravelDistance_Mi_New"
+str(TravDistMiNew_Ntile)
+
+TravDistMiNew_Ntile_Rows <- nrow(TravDistMiNew_Ntile)
+
+View(tail(TravDistMiNew_Ntile, 500))
+
+
+TravDistMiNew_Pctiles <- group_by(TravDistMiNew_Ntile,
+                                  PctR_Round
+                                 ) %>% 
+  summarise(
+    MinTravDistMiAtPctile = min(TravelDistance_Mi_New),
+    CntsAtPctile = n(),
+    PctsAtPctile = CntsAtPctile / TravDistMiNew_Ntile_Rows
+  ) %>% 
+  mutate(CumSumPAtP = cumsum(PctsAtPctile)
+        )
+
+View(TravDistMi_Pctiles)
+
+```
+
+
+Investigation of TravelDistance_Mi_New.
+
+Why are there still some small or zero TravelDistance_Mi_New values.
+```{r}
+
+View(filter(AllDays_NewTravelDist,
+            TravelDistance_Mi_New == 0
+           )
+    )
+
+# examples of TravelDistance_Mi_New values that are zero.
+View(filter(AllDays_NewTravelDist,
+            (RowNum_OG >= 1652 & RowNum_OG <= 1672) | # 1662  --  1st trip of a new route & no change in lat lon
+                (RowNum_OG >= 92378 & RowNum_OG <= 92398) | # 92388  --  odometer always at zero & no change in lat lon
+                (RowNum_OG >= 1447462 & RowNum_OG <= 1447482) | # 1447472  --  no change in odometer & no change in lat lon
+                (RowNum_OG >= 1485845 & RowNum_OG <= 1485865) # 1485855  --  no change in odometer & no change in lat lon
+           )
+    )
+
+
+View(filter(AllDays_NewTravelDist,
+            TravelDistance_Mi_New > 0 &
+              TravelDistance_Mi_New < 0.0984848485 &  # 0.0984848485 is an MDAT guess at a distance between stops
+              TravelDistance_Ft == 0  # meaning TravelDistance_Mi_New is based on Haversine distance (lat long values)
+           ) %>% 
+       arrange(TravelDistance_Mi_New)
+    )
+
+# examples of TravelDistance_Mi_New values that are very small. All are examples of no change in the odometer, and extremely small changes in lat lon.
+View(filter(AllDays_NewTravelDist,
+            (RowNum_OG >= 921036 & RowNum_OG <= 921056) | # 921046  --  
+                (RowNum_OG >= 2281235 & RowNum_OG <= 2281255) | # 2281245  --  
+                (RowNum_OG >= 2956528 & RowNum_OG <= 2956548) | # 2956538  --  
+                (RowNum_OG >= 2909007 & RowNum_OG <= 2909027) # 2909017  --  
+           )
+    )
+
+
+View(filter(AllDays_NewTravelDist,
+            TravelDistance_Mi_New > 0 &
+              TravelDistance_Mi_New < 0.0984848485 &  # 0.0984848485 is an MDAT guess at a distance between stops
+              TravelDistance_Ft != 0  # meaning TravelDistance_Mi_New is based on actual odometer readings
+           ) %>% 
+       arrange(TravelDistance_Mi_New)
+    )
+
+# examples of TravelDistance_Mi_New values that are very small. All are examples of extremely small changes in the odometer.
+View(filter(AllDays_NewTravelDist,
+            (RowNum_OG >= 1681 & RowNum_OG <= 1701) | # 1691  --  
+                (RowNum_OG >= 2131 & RowNum_OG <= 2151) | # 2141  --  
+                (RowNum_OG >= 154784 & RowNum_OG <= 154804) | # 154794  --  
+                (RowNum_OG >= 2267431 & RowNum_OG <= 2267451) # 2267441  --  
+           )
+    )
+
+```
+
+
+Investigation of TravelTime_Hr.
+
+View(TravDistMi_Pctiles): 98% of TravelTime_Hr are between 7 seconds and 464 seconds (~8 minutes).
+```{r}
+
+TravTimeHr_Ntile <- as.data.frame(AllDays_NewTravelDist$TravelTime_Hr) %>% 
+  mutate(Pctile = ntile(AllDays_NewTravelDist$TravelTime_Hr, 100),
+         MinR = min_rank(AllDays_NewTravelDist$TravelTime_Hr),
+         PctR = percent_rank(AllDays_NewTravelDist$TravelTime_Hr),
+         PctR_Round = round(PctR, 2)
+        ) 
+
+colnames(TravTimeHr_Ntile)[1] <- "TravelTime_Hr"
+str(TravTimeHr_Ntile)
+
+TravTimeHr_Ntile_Rows <- nrow(TravTimeHr_Ntile)
+
+View(tail(TravTimeHr_Ntile, 500))
+
+
+TravTimeHr_Pctiles <- group_by(TravTimeHr_Ntile,
+                               PctR_Round
+                              ) %>% 
+  summarise(
+    MinTravTimeHrAtPctile = min(TravelTime_Hr),
+    CntsAtPctile = n(),
+    PctsAtPctile = CntsAtPctile / TravTimeHr_Ntile_Rows
+  ) %>% 
+  mutate(CumSumPAtP = cumsum(PctsAtPctile),
+         MinTravTimeSecAtPctile = MinTravTimeHrAtPctile * 3600
+        )
+
+View(TravTimeHr_Pctiles)
+
+```
+
+
+Investigation of TravelTime_Hr.
+
+Histogram of TravelTime_Sec.
+```{r}
+
+TravTime_Sec_HistDen <- ggplot(filter(AllDays_NewTravelDist,
+                                      !is.na(TravelTime_Sec)
+                                     ),
+                               aes(x = TravelTime_Sec,
+                                   y = ..density..
+                                  )
+                          ) +
+  geom_histogram(binwidth = 5, fill = "lightblue", colour = "grey60", size = 0.2) +
+  geom_line(stat = "density", colour = "red") +
+  # stat_bin(binwidth = 5,
+  #          geom = "text",
+  #          size = 2.5,
+  #          vjust = 1.5,
+  #          aes(label = format(..count.., big.mark = ",")
+  #             ),
+  #         ) +
+  coord_cartesian(xlim = c(0, 180), ylim = c(0, 0.02)
+                 ) +
+  #  theme(legend.position="none") +
+  labs(title = "Variation in Travel Time",
+       x = "Travel Time (sec)",
+       y = "Density"
+      )
+
+TravTime_Sec_HistDen
+
+```
+
+
+Investigation of TravelTime_Hr.
+
+Looking at odd TravelTime_Sec values.
+```{r}
+
+View(filter(AllDays_NewTravelDist,
+            is.na(TravelTime_Sec) & 
+              !is.na(Odometer_Distance_Lag1)
+           )
+    )
+
+
+# examples of TravelTime_Sec values that are NA. These are NA because the Event_Time & Departure_Time readings are not accurate (i.e., the previous Departure_Time is BEFORE the current Event_Time).
+View(filter(AllDays_NewTravelDist,
+            (RowNum_OG >= 90809 & RowNum_OG <= 90829) | # 90819
+                (RowNum_OG >= 90881 & RowNum_OG <= 90901) | # 90891
+                (RowNum_OG >= 994813 & RowNum_OG <= 994833) | # 994823
+                (RowNum_OG >= 2391342 & RowNum_OG <= 2391362) # 2391352
+           )
+    )
+
+
+View(filter(AllDays_NewTravelDist,
+            TravelTime_Sec == 0
+           )
+    )
+
+# examples where TravelTime_Sec is zero (i.e., previous Departure_Time equals the current Event_Time).
+View(filter(AllDays_NewTravelDist,
+            (RowNum_OG >= 175725 & RowNum_OG <= 175745) | # 175735
+                (RowNum_OG >= 401127 & RowNum_OG <= 401147) | # 401137
+                (RowNum_OG >= 2446820 & RowNum_OG <= 2446840) | # 2446830
+                (RowNum_OG >= 2545036 & RowNum_OG <= 2545056) # 2545046
+           )
+    )
+
+
+View(filter(AllDays_NewTravelDist,
+            TravelTime_Sec > 0 &
+              TravelTime_Sec < 10
+           ) %>% 
+       arrange(desc(SpeedAvg_Mph)
+              )
+    )
+
+
+# examples where TravelTime_Sec is unusually small (with TravelDistance_Mi values that are large).
+View(filter(AllDays_NewTravelDist,
+            (RowNum_OG >= 1042228 & RowNum_OG <= 1042248) | # 1042238
+                (RowNum_OG >= 53816 & RowNum_OG <= 53836) | # 53826
+                (RowNum_OG >= 360571 & RowNum_OG <= 360591) | # 360581
+                (RowNum_OG >= 502271 & RowNum_OG <= 502291) # 502281 (can't explian the weird TravelTime_Sec calculation here - it's not even an integer!)
+           )
+    )
+
+# still trying to explain 502281...on the day of this weirdness, the bus was only in circulation for 4-5 stops (~20 minutes) on that day (Oct 6)
+View(filter(AllDays_NewTravelDist,
+            Bus_ID == 2711
+           )
+    )
+
+
+# exploring large values for TravelTime_Sec
+View(filter(AllDays_NewTravelDist,
+            TravelTime_Sec == 300
+           ) %>% 
+       arrange(desc(TravelTime_Sec),
+               SpeedAvg_Mph2
+              )
+    )
+
+# examples where TravelTime_Sec is unusually large (with TravelDistance_Mi values that are small, so SpeedAvg_Mph values are very small).
+View(filter(AllDays_NewTravelDist,
+            (RowNum_OG >= 2627459 & RowNum_OG <= 2627479) | # 2627469
+                (RowNum_OG >= 2193344 & RowNum_OG <= 2193364) | # 2193354
+                (RowNum_OG >= 1644123 & RowNum_OG <= 1644143) | # 1644133
+                (RowNum_OG >= 869600 & RowNum_OG <= 869620) # 869610
+           )
+    )
+
+```
+
+
+Investigation of SpeedAvg_Mph2
+
+View(Speed_Pctiles): 90% of SpeedAvg_Mph2 are between ~3mph and ~66mph.
+```{r}
+
+Speed_Ntile <- as.data.frame(AllDays_NewTravelDist$SpeedAvg_Mph2) %>% 
+  mutate(Pctile = ntile(AllDays_NewTravelDist$SpeedAvg_Mph2, 100),
+         MinR = min_rank(AllDays_NewTravelDist$SpeedAvg_Mph2),
+         PctR = percent_rank(AllDays_NewTravelDist$SpeedAvg_Mph2),
+         PctR_Round = round(PctR, 2)
+        ) 
+
+colnames(Speed_Ntile)[1] <- "SpeedAvg_Mph2"
+str(Speed_Ntile)
+
+Speed_Ntile_Rows <- nrow(Speed_Ntile)
+
+View(tail(Speed_Ntile, 500))
+
+
+Speed_Pctiles <- group_by(Speed_Ntile,
+                          PctR_Round
+                         ) %>% 
+  summarise(
+    MinSpeedAtPctile = min(SpeedAvg_Mph2),
+    CntsAtPctile = n(),
+    PctsAtPctile = CntsAtPctile / Speed_Ntile_Rows
+  ) %>% 
+  mutate(CumSumPAtP = cumsum(PctsAtPctile)
+        )
+
+View(Speed_Pctiles)
+
+```
+
+
+Investigation of SpeedAvg_Mph2.
+
+Exploring the removal of outlier TravelTime_Sec and TravelDistance_Mi.
+```{r}
+
+summary(select(AllDays_NewTravelDist,
+               SpeedAvg_Mph,
+               SpeedAvg_Mph2
+              )
+       )
+
+summary(select(filter(AllDays_NewTravelDist,
+                      TravelDistance_Mi > 0.0001893939 & # lowest non-zero percentile
+                        TravelDistance_Mi < 1.0812500000 & # 99th percentile
+                        TravelTime_Sec > 10.050000 & # 2nd percentile
+                        TravelTime_Sec < 293.000000 # 98th percentile
+                     ),
+               SpeedAvg_Mph,
+               SpeedAvg_Mph2
+              )
+       )
+
+```
+
+
+Investigation of SpeedAvg_Mph2.
+
+Histogram of SpeedAvg_Mph2.
+```{r}
+
+Speed_HistDen <- ggplot(filter(AllDays_NewTravelDist,
+                               !is.na(SpeedAvg_Mph2)
+                              ),
+                        aes(x = SpeedAvg_Mph2,
+                            y = ..density..
+                           )
+                       ) +
+  geom_histogram(binwidth = 5, fill = "lightblue", colour = "grey60", size = 0.2) +
+  geom_line(stat = "density", colour = "red") +
+  stat_bin(binwidth = 5,
+           geom = "text",
+           size = 2.5,
+           vjust = 1.5,
+           aes(label = format(..count.., big.mark = ",")
+              ),
+          ) +
+  # geom_text(aes(label = format(..count.., big.mark = ",")
+  #              ),
+  #           size = 3,
+  #           nudge_y = (..count.. * 0.1)
+  #          ) +
+  coord_cartesian(xlim = c(0, 70), ylim = c(0, 0.04)
+                 ) +
+  #  theme(legend.position="none") +
+  labs(title = "Variation in Travel Speed",
+       x = "Average Speed (mph)",
+       y = "Density"
+      )
+
+Speed_HistDen
+
+```
+
+
+Investigation of SpeedAvg_Mph2.
+
+Histogram of SpeedAvg_Mph2 after removing outlier TravelTime_Sec and TravelDistance_Mi.
+```{r}
+
+View(TravDistMiNew_Pctiles)
+View(TravTimeHr_Pctiles)
+
+SpeedNoOutlier_HistDen <- ggplot(filter(AllDays_NewTravelDist,
+                                        !is.na(SpeedAvg_Mph2) &
+                                          TravelDistance_Mi_New > 0.077841005 & # 5th percentile
+                                          # TravelDistance_Mi_New < 1.0812500000 & # 99th percentile
+                                          TravelTime_Sec > 12.100000 # 4th percentile
+                                          # TravelTime_Sec < 293.000000 # 98th percentile
+                                       ),
+                                 aes(x = SpeedAvg_Mph2,
+                                     y = ..density..
+                                    )
+                                ) +
+  geom_histogram(binwidth = 5, fill = "lightblue", colour = "grey60", size = 0.2) +
+  geom_line(stat = "density", colour = "red") +
+  stat_bin(binwidth = 5,
+           geom = "text",
+           size = 2.5,
+           vjust = 1.5,
+           aes(label = format(..count.., big.mark = ",")
+              ),
+          ) +
+  # geom_text(aes(label = format(..count.., big.mark = ",")
+  #              ),
+  #           size = 3,
+  #           nudge_y = (..count.. * 0.1)
+  #          ) +
+  coord_cartesian(xlim = c(0, 70), ylim = c(0, 0.04)
+                 ) +
+  #  theme(legend.position="none") +
+  labs(title = "Variation in Travel Speed",
+       subtitle = "(removed low outliers of Travel Distance and Travel Time)",
+       x = "Average Speed (mph)",
+       y = "Density"
+      )
+
+SpeedNoOutlier_HistDen
+
+```
+
+
+Investigation of SpeedAvg_Mph2.
+
+New dataset (NoOutliers_TravelDistNTime) when removing outlier low values of TravelDistance_Mi_New and TravelTime_Sec.
+```{r}
+
+View(TravDistMiNew_Pctiles)
+View(TravTimeHr_Pctiles)
+
+NoOutliers_TravelDistNTime <- filter(AllDays_NewTravelDist,
+                                     TravelDistance_Mi_New > .077841005 & # 5th percentile
+                                       # TravelDistance_Mi_New < 1.0812500000 & # 99th percentile
+                                       TravelTime_Sec > 12.100000 # 4th percentile
+                                       # TravelTime_Sec < 293.000000 # 98th percentile
+                                    )
+
+nrow(AllDays_NewTravelDist) - nrow(NoOutliers_TravelDistNTime)
+
+str(NoOutliers_TravelDistNTime)
+summary(NoOutliers_TravelDistNTime)
+
+```
+
+
+Investigation of SppedAvg_Mph2.
+
+View(Speed_NoOut_Pctiles):  Aproximately 90% of SpeedAvg_Mph2 values are between ~4mph and ~56mph.
+```{r}
+
+Speed_NoOut_Ntile <- as.data.frame(NoOutliers_TravelDistNTime$SpeedAvg_Mph2) %>% 
+  mutate(Pctile = ntile(NoOutliers_TravelDistNTime$SpeedAvg_Mph2, 100),
+         MinR = min_rank(NoOutliers_TravelDistNTime$SpeedAvg_Mph2),
+         PctR = percent_rank(NoOutliers_TravelDistNTime$SpeedAvg_Mph2),
+         PctR_Round = round(PctR, 2)
+        ) 
+
+colnames(Speed_NoOut_Ntile)[1] <- "SpeedAvg_Mph2"
+str(Speed_NoOut_Ntile)
+
+Speed_NoOut_Ntile_Rows <- nrow(Speed_NoOut_Ntile)
+
+View(tail(Speed_NoOut_Ntile, 500))
+
+
+Speed_NoOut_Pctiles <- group_by(Speed_NoOut_Ntile,
+                                PctR_Round
+                               ) %>% 
+  summarise(
+    MinSpeedAtPctile = min(SpeedAvg_Mph2),
+    CntsAtPctile = n(),
+    PctsAtPctile = CntsAtPctile / Speed_NoOut_Ntile_Rows
+  ) %>% 
+  mutate(CumSumPAtP = cumsum(PctsAtPctile)
+        )
+
+View(Speed_NoOut_Pctiles)
+
+```
+
+
+Investigation of SppedAvg_Mph2.
+
+Exloring odd/impossible values.
+```{r}
+
+# Exploring when SpeedAvg_Mph2 is NA  --  does not occur at all
+nrow(filter(NoOutliers_TravelDistNTime,
+            is.na(SpeedAvg_Mph2)
+           )
+    )
+
+
+# Exploring when SpeedAvg_Mph2 is zero  --  does not occur at all
+nrow(filter(NoOutliers_TravelDistNTime,
+            SpeedAvg_Mph2 == 0
+           )
+    )
+
+
+# examples where SpeedAvg_Mph2 < 3.2848770
+View(filter(AllDays_NewTravelDist,
+            SpeedAvg_Mph2 > 0 &
+              SpeedAvg_Mph2 < 3.2848770
+           ) %>% 
+       arrange(SpeedAvg_Mph2)
+    )
+
+# examples where SpeedAvg_Mph2 < 3.2848770
+View(filter(AllDays_NewTravelDist,
+            (RowNum_OG >= 485338 & RowNum_OG <= 485358) | # 485348  --  Extreme travel time, Route Change
+                (RowNum_OG >= 346952 & RowNum_OG <= 346972) | # 346962  -- Extreme travel time, Route Change 
+                (RowNum_OG >= 70494 & RowNum_OG <= 70514) | # 70504  --  Extreme travel time, Route Change
+                (RowNum_OG >= 2051846 & RowNum_OG <= 2051866) # 2051856  --  Extreme travel time, Route Change
+           )
+    )
+
+```
+
+
+Investigation of SpeedAvg_Mph2.
+
+Limit the dataset based on SpeedAvg_Mph2.
+```{r}
+
+NoOutliersSpeed <- filter(NoOutliers_TravelDistNTime,
+                          between(SpeedAvg_Mph2,
+                                  4.069300, # 5th percentile
+                                  56.05651 #95th percentile
+                                 )
+                          )
+
+nrow(NoOutliers_TravelDistNTime) - nrow(NoOutliersSpeed)
+
+summary(NoOutliersSpeed)
+
+```
+
+
+TravelTime now looks like it has some odd values on the high end.  So let's look at those.
+
+View(TravTime_NoOut_Pctiles):  Virtually all trips should take less than 5 minutes. (The 99th percentile of of TravelTime is approximately 8 minutes.)
+```{r}
+
+TravTime_NoOut_Ntile <- as.data.frame(NoOutliersSpeed$TravelTime_Hr) %>% 
+  mutate(Pctile = ntile(NoOutliersSpeed$TravelTime_Hr, 100),
+         MinR = min_rank(NoOutliersSpeed$TravelTime_Hr),
+         PctR = percent_rank(NoOutliersSpeed$TravelTime_Hr),
+         PctR_Round = round(PctR, 2)
+        )
+
+colnames(TravTime_NoOut_Ntile)[1] <- "TravelTime_Hr"
+str(TravTime_NoOut_Ntile)
+
+TravTime_NoOut_Ntile_Rows <- nrow(TravTime_NoOut_Ntile)
+
+View(tail(TravTime_NoOut_Ntile, 500))
+
+
+TravTime_NoOut_Pctiles <- group_by(TravTime_NoOut_Ntile,
+                                   PctR_Round
+                                  ) %>% 
+  summarise(
+    MinTravTimeHrAtPctile = min(TravelTime_Hr),
+    CntsAtPctile = n(),
+    PctsAtPctile = CntsAtPctile / TravTime_NoOut_Ntile_Rows
+  ) %>% 
+  mutate(CumSumPAtP = cumsum(PctsAtPctile),
+         MinTravTimeSecAtPctile = MinTravTimeHrAtPctile * (60 * 60)
+        )
+
+View(TravTime_NoOut_Pctiles)
+
+```
+
+
+Investigating odd TravelTime_Sec values.
+
+Trips longer than ~8 minutes.
+```{r}
+
+View(filter(NoOutliersSpeed,
+            TravelTime_Sec > 491 # min at the 100th percentile
+           ) %>% 
+       arrange(desc(TravelTime_Sec)
+              )
+    )
+
+# examples of TravelTime_Sec values that are largest.
+View(filter(NoOutliersSpeed,
+            (RowNum_OG >= 2071759 & RowNum_OG <= 2071779) | # 2071769  --  results from a route change, and a 3hr+ wait before the new route starts
+                (RowNum_OG >= 1473686 & RowNum_OG <= 1473706) | # 1473696  --  results from a route change, and a 3hr wait before the new route starts
+                (RowNum_OG >= 1222822 & RowNum_OG <= 1222842) | # 1222832  --  results from a route change, and a 3hr wait before the new route starts
+                (RowNum_OG >= 3046089 & RowNum_OG <= 3046109) # 3046099  --  results from a route change, and a 3hr wait before the new route starts
+           )
+    )
+
+
+# examples of TravelTime_Sec values that are the smallest of the large.
+View(filter(NoOutliersSpeed,
+            (RowNum_OG >= 3044689 & RowNum_OG <= 3044709) | # 3044699  --  results from a route change
+                (RowNum_OG >= 3022358 & RowNum_OG <= 3022378) | # 3022368  --  results from a route change
+                (RowNum_OG >= 2993016 & RowNum_OG <= 2993036) | # 2993026  --  results from a previous route change (change occurred in deleted row)
+                (RowNum_OG >= 2683703 & RowNum_OG <= 2683723) # 2683713  --  results from a previous route change (change occurred in deleted row)
+           )
+    )
+
+```
+
+
+Let's look at the TravelTime_Sec values and route changes (DirChange2).
+
+The 99th percentile of TravelTime_Sec for both, all trips, and just those trips NOT involving route changes (DirChange2 = "Same"), is approximately 5min (300 sec).
+
+Nota Bene:  The percentile calculation here is defined slightly different than in most of the above analyses (which get the lowest value in the bin created by 100 ntiles).
+```{r}
+
+summary(select(NoOutliersSpeed,
+               TravelTime_Sec
+              )
+       )
+
+summary(select(filter(NoOutliersSpeed,
+                      DirChange2 == "Same"
+                     ),
+               TravelTime_Sec
+              )
+       )
+
+summary(select(filter(NoOutliersSpeed,
+                      DirChange2 == "Change"
+                     ),
+               TravelTime_Sec
+              )
+       )
+
+
+TravTimeSec_Qtiles_df <- data.frame(PctValue = seq(0, 100, 1),
+                                    All = seq(1, 101, 1),
+                                    Same = seq(1, 101, 1),
+                                    Change = seq(1, 101, 1)
+                                   )
+
+TravTimeSec_Qtiles_df[ , 2] <- quantile(select(NoOutliersSpeed,
+                                               TravelTime_Sec
+                                              ),
+                                        probs = seq(0, 1, 0.01),
+                                        na.rm = TRUE
+                                       )
+
+TravTimeSec_Qtiles_df[ , 3] <- quantile(select(filter(NoOutliersSpeed,
+                                                      DirChange2 == "Same"
+                                                     ),
+                                               TravelTime_Sec
+                                              ),
+                                        probs = seq(0, 1, 0.01),
+                                        na.rm = TRUE
+                                       )
+
+TravTimeSec_Qtiles_df[ , 4] <- quantile(select(filter(NoOutliersSpeed,
+                                                      DirChange2 == "Change"
+                                                     ),
+                                               TravelTime_Sec
+                                              ),
+                                        probs = seq(0, 1, 0.01),
+                                        na.rm = TRUE
+                                       )
+
+View(TravTimeSec_Qtiles_df)
+
+```
+
+
+Limit the dataset now based on TravelTime_Sec.
+```{r}
+
+UpperLimitTravTime <- filter(NoOutliersSpeed,
+                             TravelTime_Sec <= 491 # min at the 100th percentile
+                             )
+
+nrow(NoOutliersSpeed) - nrow(UpperLimitTravTime)
+
+str(UpperLimitTravTime)
+
+summary(UpperLimitTravTime)
+
+```
+
+
+
+
+
+
+
+
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file).
