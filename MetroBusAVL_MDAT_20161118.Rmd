@@ -9,7 +9,7 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook for analysis usin
 
 https://planitmetro.com/2016/11/16/data-download-metrobus-vehicle-location-data/
 
-Testing.
+
 Load the packages to be used.
 ```{r echo = FALSE, message = FALSE}
 
@@ -17,6 +17,7 @@ library("tidyr")
 library("plyr")
 library("dplyr")
 library("magrittr")
+library("stringr")
 library("data.table")
 library("lubridate")
 library("geosphere")
@@ -40,7 +41,7 @@ getwd()
 Then, actually get the data.
 ```{r echo = FALSE}
 
-setwd("/Users/mdturse/Desktop/Analytics/Metro Bus AVL/Bus AVL Oct 2016")
+setwd("/Users/mdturse/Desktop/Analytics/DCMetroBus/Bus AVL Oct 2016")
 
 for (i in 3:7){
   assign(paste0("Oct0", i, "Raw"),
@@ -67,7 +68,7 @@ Put the daily data together.
 AllDays <- bind_rows(list(Oct03Raw, Oct04Raw, Oct05Raw, Oct06Raw, Oct07Raw),
                      .id = c("group")
                     )
-dim(AllDays)
+# dim(AllDays)
 str(AllDays)
 
 ```
@@ -107,10 +108,86 @@ AllDays_Sorted <- arrange(AllDays,
   mutate(RowNum_OG = row_number() # this is useful in identify the row later on
         )
 
-# rm(AllDays)
+rm(AllDays)
 str(AllDays_Sorted)
 
-View(head(AllDays_Sorted, 100))
+# View(head(AllDays_Sorted, 100))
+
+```
+
+
+Inspecting the values of Stop_ID, and finding that it can take the values "" (blank) and "NULL".
+```{r}
+
+View(group_by(AllDays_Sorted,
+              Stop_ID
+             ) %>% 
+       summarise(
+         Cnt = n()
+         ) %>% 
+       arrange(Stop_ID)
+    )
+
+View(filter(AllDays_Sorted,
+            is.na(Stop_ID) |
+              Stop_ID == "" |
+              Stop_ID == "NULL"
+           ) %>% 
+       arrange(Stop_Desc)
+    )
+
+```
+
+
+Creating a table of distinct Stop_Desc values when Stop_ID is "" (blank) or "NULL".
+```{r}
+
+StopID_New <- filter(AllDays_Sorted,
+                     is.na(Stop_ID) |
+                       Stop_ID == "" |
+                       Stop_ID == "NULL"
+                    ) %>% 
+  select(Stop_ID, Stop_Desc) %>% 
+  distinct() %>% 
+  arrange(Stop_ID, Stop_Desc) %>% 
+  mutate(StopID_New = 1:nrow(.)
+        )
+
+View(StopID_New)
+
+```
+
+
+Creating a full updated table by filling in StopID_New for when Stop_ID is "" (blank) or NULL.
+```{r}
+
+AllDays_StopIDNew <- left_join(AllDays_Sorted,
+                               select(StopID_New,
+                                      Stop_Desc,
+                                      StopID_New
+                                     ),
+                               by = c("Stop_Desc" = "Stop_Desc")
+                              ) %>% 
+  mutate(StopID_Clean = ifelse(is.na(StopID_New),
+                               Stop_ID,
+                               StopID_New
+                              ),
+         StopID_Indicator = factor(ifelse(is.na(StopID_New),
+                                          "ID_OK",
+                                          "ID_Bad"
+                                         )
+                                  )
+        )
+
+rm(StopID_New)
+rm(AllDays_Sorted)
+str(AllDays_StopIDNew)
+
+# View(tail(AllDays_StopIDNew, 500))
+# View(filter(AllDays_StopIDNew,
+#             Stop_Desc == "METROWAY ANNNOUCEMNT CORR"
+#            )
+#     )
 
 ```
 
@@ -122,7 +199,7 @@ Inspecting incidences of consecutive Stop_IDs. This is done because investigatio
 Create data on the runs (consecutive Stop_IDs).
 ```{r}
 
-StopID_Runs <- rle(AllDays_Sorted$Stop_ID)
+StopID_Runs <- rle(AllDays_StopIDNew$StopID_Clean)
 
 StopID_Runs$ends <- cumsum(StopID_Runs$lengths)
 
@@ -133,11 +210,11 @@ StopID_Runs$starts <- ifelse(is.na(lag(StopID_Runs$ends)
                             )
 
 str(StopID_Runs)
-class(StopID_Runs)
-
-StopID_Runs_df <- data.frame(unclass(StopID_Runs))
-str(StopID_Runs_df)
-class(StopID_Runs_df)
+# class(StopID_Runs)
+# 
+# StopID_Runs_df <- data.frame(unclass(StopID_Runs))
+# str(StopID_Runs_df)
+# class(StopID_Runs_df)
 # rm(StopID_Runs_df)
 
 ```
@@ -283,15 +360,15 @@ When consecutive Stop_ID occurrs, only take the first occurrence. This is done b
 This is probably less than ideal with regards to Dwell_Time, but should not make much difference for calculations of travel time, speed, etc.
 ```{r}
 
-AllDays_FirstStopID <- AllDays_Sorted[StopID_Runs$starts, ]
+AllDays_FirstStopID <- AllDays_StopIDNew[StopID_Runs$starts, ]
 
-dim(AllDays_Sorted)
+dim(AllDays_StopIDNew)
 dim(AllDays_FirstStopID)
 
-nrow(AllDays_Sorted) - nrow(AllDays_FirstStopID)
+nrow(AllDays_StopIDNew) - nrow(AllDays_FirstStopID)
 
-# rm(AllDays_Sorted)
-# rm(StopID_Runs)
+rm(AllDays_StopIDNew)
+rm(StopID_Runs)
 str(AllDays_FirstStopID)
 
 ```
@@ -341,25 +418,25 @@ AllDays_AddVars <- mutate(AllDays_FirstStopID,
                                                      )
                          )
 
-# rm(AllDays_FirstStopID)
+rm(AllDays_FirstStopID)
 str(AllDays_AddVars)
 
 
-group_by(AllDays_AddVars,
-         Event_Time_HrGroup
-        ) %>% 
-  summarise(Cnts = n()
-           )
+# group_by(AllDays_AddVars,
+#          Event_Time_HrGroup
+#         ) %>% 
+#   summarise(Cnts = n()
+#            )
 
 
-View(head(filter(AllDays_AddVars,
-                 Event_Time_Hr == 0
-                ),
-          50
-         )
-    )
+# View(head(filter(AllDays_AddVars,
+#                  Event_Time_Hr == 0
+#                 ),
+#           50
+#          )
+#     )
 
-View(head(AllDays_AddVars, 50))
+# View(head(AllDays_AddVars, 50))
 
 ```
 
@@ -435,22 +512,46 @@ AllDays_BusDay <- group_by(AllDays_AddVars,
                                NA
                               ),
          
-         Start_ID = lag(Stop_ID),
+         Start_ID = lag(StopID_Clean),
          Start_Desc = lag(Stop_Desc),
          StartStop_ID = ifelse(is.na(Start_ID),
-                               NA,
-                               paste(Start_ID, Stop_ID, sep = "--")
+                               paste("NULL", StopID_Clean, sep = "--"),
+                               paste(Start_ID, StopID_Clean, sep = "--")
                               )
         ) %>% 
   as.data.frame()
 
 
-# rm(AllDays_AddVars)
+rm(AllDays_AddVars)
 str(AllDays_BusDay)
 
-summary(AllDays_BusDay)
+# summary(AllDays_BusDay)
 
-View(tail(AllDays_BusDay, 500))
+# View(tail(AllDays_BusDay, 50))
+
+```
+
+
+Inspecting for issues with StartStop_ID (where the value is either NA or contains NULL).
+```{r}
+
+View(group_by(AllDays_BusDay,
+              StartStop_ID
+             ) %>% 
+       summarise(
+         Cnt = n()
+       ) %>% 
+       arrange(desc(Cnt)
+              )
+    )
+
+View(filter(AllDays_BusDay,
+            (is.na(StartStop_ID) |
+              str_detect(StartStop_ID, "NULL")
+            ) &
+              BusDay_EventNum != 1
+           )
+    )
 
 ```
 
@@ -458,55 +559,75 @@ View(tail(AllDays_BusDay, 500))
 Stats for StartStop_ID.
 ```{r}
 
-StartStopStats <- group_by(AllDays_BusDay,
-                           StartStop_ID
-                          ) %>% 
-  summarise(TravelDistance_Mi_Mean = mean(TravelDistance_Mi, na.rm = TRUE),
-            TravelDistance_Mi_Med = median(TravelDistance_Mi, na.rm = TRUE),
-            TravelDistance_Mi_Cnt = sum(!is.na(TravelDistance_Mi)),
+Stats_StSt <- group_by(AllDays_BusDay,
+                       StartStop_ID
+                      ) %>% 
+  summarise(TD_Mi_SS_Mean = mean(TravelDistance_Mi, na.rm = TRUE),
+            TD_Mi_SS_Med = median(TravelDistance_Mi, na.rm = TRUE),
+            TD_Mi_SS_Cnt = sum(!is.na(TravelDistance_Mi)),
             
-            TravelTimeSec_Mean = mean(TravelTime_Sec, na.rm = TRUE),
-            TravelTimeSec_Med = median(TravelTime_Sec, na.rm = TRUE),
-            TravelTimeSec_Cnt = sum(!is.na(TravelTime_Sec)),
+            TT_Sec_SS_Mean = mean(TravelTime_Sec, na.rm = TRUE),
+            TT_Sec_SS_Med = median(TravelTime_Sec, na.rm = TRUE),
+            TT_Sec_SS_Cnt = sum(!is.na(TravelTime_Sec)),
 
-            TravelTimeHr_Mean = mean(TravelTime_Hr, na.rm = TRUE),
-            TravelTimeHr_Med = median(TravelTime_Hr, na.rm = TRUE),
-            TravelTimeHr_Cnt = sum(!is.na(TravelTime_Hr))
+            TT_Hr_SS_Mean = mean(TravelTime_Hr, na.rm = TRUE),
+            TT_Hr_SS_Med = median(TravelTime_Hr, na.rm = TRUE),
+            TT_Hr_SS_Cnt = sum(!is.na(TravelTime_Hr))
            )
 
-View(head(StartStopStats, 50))
+View(head(Stats_StSt, 50))
 
 ```
 
 
-Join StartStopStats with AllDays_BusDay
+Stats for StartStop_ID with Event_Time_HrGroup.
 ```{r}
 
-AllDays_BusDay2 <- left_join(AllDays_BusDay,
-                             StartStopStats,
-                             by = c("StartStop_ID" = "StartStop_ID")
-                            )
+Stats_StSt_HrGrp <- group_by(AllDays_BusDay,
+                             StartStop_ID,
+                             Event_Time_HrGroup
+                            ) %>% 
+   summarise(TD_Mi_SSHG_Mean = mean(TravelDistance_Mi, na.rm = TRUE),
+             TD_Mi_SSHG_Med = median(TravelDistance_Mi, na.rm = TRUE),
+             TD_Mi_SSHG_Cnt = sum(!is.na(TravelDistance_Mi)),
+            
+             TT_Sec_SSHG_Mean = mean(TravelTime_Sec, na.rm = TRUE),
+             TT_Sec_SSHG_Med = median(TravelTime_Sec, na.rm = TRUE),
+             TT_Sec_SSHG_Cnt = sum(!is.na(TravelTime_Sec)),
 
-dim(AllDays_BusDay)
-dim(AllDays_BusDay2)
+             TT_Hr_SSHG_Mean = mean(TravelTime_Hr, na.rm = TRUE),
+             TT_Hr_SSHG_Med = median(TravelTime_Hr, na.rm = TRUE),
+             TT_Hr_SSHG_Cnt = sum(!is.na(TravelTime_Hr))
+            )
 
-# rm(AllDays_BusDay)
-# rm(StartStopStats)
-str(AllDays_BusDay2)
-summary(AllDays_BusDay2)
+View(head(Stats_StSt_HrGrp, 50))
 
-View(filter(AllDays_BusDay2,
-            # is.na(TravelDistance_Mi) &
-            StartStop_ID == "5002206--5002207"
-            # TravelDistance_Mi_Mean = 0.1312205
-            # TravelDistance_Mi_Med = 0.09659091
+
+```
+
+
+Join Stats_StSt and Stats_StSt_HrGrp with AllDays_BusDay
+```{r}
+
+AllDays_wSumStats <- left_join(AllDays_BusDay,
+                               Stats_StSt,
+                               by = c("StartStop_ID" = "StartStop_ID")
+                              ) %>% 
+  left_join(Stats_StSt_HrGrp,
+            Stats_StSt,
+            by = c("StartStop_ID" = "StartStop_ID",
+                   "Event_Time_HrGroup" = "Event_Time_HrGroup"
+                  )
            )
-    )
 
-View(filter(AllDays_BusDay2,
-            between(RowNum_OG, 1488, 1508)  # 1498
-           )
-    )
+# dim(AllDays_BusDay)
+# dim(AllDays_wSumStats)
+
+rm(AllDays_BusDay)
+rm(Stats_StSt)
+rm(Stats_StSt_HrGrp)
+str(AllDays_wSumStats)
+summary(AllDays_wSumStats)
 
 ```
 
@@ -516,7 +637,7 @@ Feature engineering.
 Creating a BusEventRoute row number, and a RouteAlt_Lag1 indicator for future identification purposes. 
 ```{r}
 
-AllDays_BusDayRoute <- group_by(AllDays_BusDay,
+AllDays_BusDayRoute <- group_by(AllDays_wSumStats,
                                 Bus_ID,
                                 Event_Time_Date,
                                 Route
@@ -547,7 +668,7 @@ AllDays_BusDayRoute <- group_by(AllDays_BusDay,
         ) %>% 
   as.data.frame()
 
-# rm(AllDays_BusDay)
+rm(AllDays_wSumStats)
 str(AllDays_BusDayRoute)
 
 ```
@@ -570,7 +691,7 @@ AllDays_DirChange <- AllDays_BusDayRoute %>%
                             )
         )
 
-# rm(AllDays_BusDayRoute)
+rm(AllDays_BusDayRoute)
 str(AllDays_DirChange)
 
 ```
@@ -618,15 +739,33 @@ AllDays_NewOrder <-  select(AllDays_DirChange,
                             TravelDistance_Ft,
                             TravelDistance_Mi,
                             TravelDistance_Mi_Hvrs,
+                            TD_Mi_SS_Mean,
+                            TD_Mi_SSHG_Mean,
+                            TD_Mi_SS_Med,
+                            TD_Mi_SSHG_Med,
+                            TD_Mi_SS_Cnt,
+                            TD_Mi_SSHG_Cnt,
                             TravelTime_Sec,
+                            TT_Sec_SS_Mean,
+                            TT_Sec_SSHG_Mean,
+                            TT_Sec_SS_Med,
+                            TT_Sec_SSHG_Med,
+                            TT_Sec_SS_Cnt,
+                            TT_Sec_SSHG_Cnt,
                             TravelTime_Hr,
+                            TT_Hr_SS_Mean,
+                            TT_Hr_SSHG_Mean,
+                            TT_Hr_SS_Med,
+                            TT_Hr_SSHG_Med,
+                            TT_Hr_SS_Cnt,
+                            TT_Hr_SSHG_Cnt,
                             SpeedAvg_Mph
                            )
 
-# rm(AllDays_DirChange)
+rm(AllDays_DirChange)
 str(AllDays_NewOrder)
 
-View(head(AllDays_NewOrder, 500))
+# View(head(AllDays_NewOrder, 500))
 View(tail(AllDays_NewOrder, 500))
 
 ```
@@ -636,6 +775,67 @@ Summarizing the data to help spot anomolies.
 ```{r}
 
 summary(AllDays_NewOrder)
+
+```
+
+
+Explore instances where TravelDistance_Mi is NA.
+```{r}
+
+View(group_by(AllDays_NewOrder,
+              StartStop_ID
+             ) %>% 
+       summarise(Cnts = sum(is.na(TravelDistance_Mi)
+                           )
+                ) %>% 
+       arrange(desc(Cnts)
+              )
+    )
+
+View(filter(AllDays_NewOrder,
+            # StartStop_ID == "5002206--5002207"
+            StartStop_ID == "1000245--1000211"
+           ) %>% 
+       select(TravelDistance_Mi,
+              TravelDistance_Mi_Hvrs,
+              TD_Mi_SS_Mean,
+              TD_Mi_SSHG_Mean,
+              TD_Mi_SS_Med,
+              TD_Mi_SSHG_Med,
+              TD_Mi_SS_Cnt,
+              TD_Mi_SSHG_Cnt
+              ) %>% 
+       mutate(Ratio_MeanToHvrs = TD_Mi_SS_Mean / TravelDistance_Mi_Hvrs)
+    )
+
+```
+
+
+Explore instances where TravelDistance_Mi is NA.
+```{r}
+
+View(group_by(AllDays_NewOrder,
+              StartStop_ID
+             ) %>% 
+       summarise(Cnts = sum(is.na(TravelTime_Sec)
+                           )
+                ) %>% 
+       arrange(desc(Cnts)
+              )
+    )
+
+View(filter(AllDays_NewOrder,
+            StartStop_ID == "5004635--5004758"
+           ) %>% 
+       select(TravelTime_Sec,
+              TT_Sec_SS_Mean,
+              TT_Sec_SSHG_Mean,
+              TT_Sec_SS_Med,
+              TT_Sec_SSHG_Med,
+              TT_Sec_SS_Cnt,
+              TT_Sec_SSHG_Cnt
+              )
+    )
 
 ```
 
