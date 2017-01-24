@@ -532,7 +532,7 @@ str(AllDays_BusDay)
 ```
 
 
-Inspecting for issues with StartStop_ID (where the value is either NA or contains NULL).
+Inspecting for issues with StartStop_ID (where the value is either NA or contains NULL). They ONLY exist when BusDay_EventNum = 1 (which is by design). So everything looks OK.
 ```{r}
 
 View(group_by(AllDays_BusDay,
@@ -558,6 +558,73 @@ View(filter(AllDays_BusDay,
 
 Stats for StartStop_ID.
 ```{r}
+
+a <- filter(AllDays_BusDay,
+       !is.na(TravelDistance_Mi)
+      ) %>% 
+  select(TravelDistance_Mi)
+
+aq <- as.data.frame(quantile(a$TravelDistance_Mi, probs = c(0.05, 0.95)))
+class(aq)
+str(aq)
+View(aq)
+
+b_5 <- quantile(AllDays_BusDay$TravelDistance_Mi, probs = 0.05, na.rm = TRUE)
+b_95 <- quantile(AllDays_BusDay$TravelDistance_Mi, probs = 0.95, na.rm = TRUE)
+
+
+c <- select(AllDays_BusDay,
+            TravelDistance_Mi
+           ) %>% 
+       filter(between(TravelDistance_Mi, b_5, b_95)
+             ) %>% 
+       arrange(desc(TravelDistance_Mi)
+              )
+
+str(c)
+
+mean(AllDays_BusDay$TravelDistance_Mi, na.rm = TRUE)
+mean(c$TravelDistance_Mi, na.rm = TRUE)
+
+median(AllDays_BusDay$TravelDistance_Mi, na.rm = TRUE)
+median(c$TravelDistance_Mi, na.rm = TRUE)
+
+sum(!is.na(AllDays_BusDay$TravelDistance_Mi))
+sum(!is.na(c$TravelDistance_Mi))
+
+func_mean <- function(var, ...){
+  q5 <- quantile(df$var, probs = 0.05, na.rm = TRUE)
+  q95 <- quantile(df$var, probs = 0.95, na.rm = TRUE)
+  
+  df_90Pct <- select(df, var) %>% 
+    filter(between(var, b_5, b_95)
+          ) %>% 
+    arrange(desc(var)
+           )
+  
+  mean_val <- mean(df_90Pct$var, na.rm = TRUE)
+  
+  return(mean_val)
+}
+
+testing <- group_by(AllDays_BusDay,
+                    StartStop_ID) %>% 
+  do(TestMean = func_mean(data = ., var = TravelDistance_Mi)
+           )
+
+
+dynamicCalcGDD <- function(df, temp_var, group_var) {
+        group_by_(df, group_var) %>%
+        summarize_(var_mean = func_mean(temp_var)
+                  )
+    }
+
+dynamicCalcGDD(df = AllDays_BusDay, group_var = "StartStop_ID", temp_var = TravelDistance_Mi)
+
+
+
+
+
 
 Stats_StSt <- group_by(AllDays_BusDay,
                        StartStop_ID
@@ -626,7 +693,9 @@ AllDays_wSumStats <- left_join(AllDays_BusDay,
 rm(AllDays_BusDay)
 rm(Stats_StSt)
 rm(Stats_StSt_HrGrp)
+
 str(AllDays_wSumStats)
+
 summary(AllDays_wSumStats)
 
 ```
@@ -713,7 +782,9 @@ AllDays_NewOrder <-  select(AllDays_DirChange,
                             Stop_Sequence,
                             Start_ID,
                             Start_Desc,
-                            Stop_ID,
+                            # Stop_ID,
+                            StopID_Clean,
+                            StopID_Indicator,
                             Stop_Desc,
                             StartStop_ID,
                             Event_Type,
@@ -782,9 +853,12 @@ summary(AllDays_NewOrder)
 Explore instances where TravelDistance_Mi is NA.
 ```{r}
 
-View(group_by(AllDays_NewOrder,
-              StartStop_ID
-             ) %>% 
+# View(head(AllDays_NewOrder, 500))
+
+View(filter(AllDays_NewOrder,
+            BusDay_EventNum != 1
+           ) %>% 
+       group_by(StartStop_ID) %>% 
        summarise(Cnts = sum(is.na(TravelDistance_Mi)
                            )
                 ) %>% 
@@ -793,10 +867,12 @@ View(group_by(AllDays_NewOrder,
     )
 
 View(filter(AllDays_NewOrder,
-            # StartStop_ID == "5002206--5002207"
             StartStop_ID == "1000245--1000211"
            ) %>% 
-       select(TravelDistance_Mi,
+       select(RowNum_OG,
+              StartStop_ID,
+              Event_Time_HrGroup,
+              TravelDistance_Mi,
               TravelDistance_Mi_Hvrs,
               TD_Mi_SS_Mean,
               TD_Mi_SSHG_Mean,
@@ -805,7 +881,8 @@ View(filter(AllDays_NewOrder,
               TD_Mi_SS_Cnt,
               TD_Mi_SSHG_Cnt
               ) %>% 
-       mutate(Ratio_MeanToHvrs = TD_Mi_SS_Mean / TravelDistance_Mi_Hvrs)
+       mutate(Ratio_MeanToHvrs = TD_Mi_SS_Mean / TravelDistance_Mi_Hvrs) %>% 
+       arrange(RowNum_OG)
     )
 
 ```
