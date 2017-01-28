@@ -9,6 +9,7 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook for analysis usin
 
 https://planitmetro.com/2016/11/16/data-download-metrobus-vehicle-location-data/
 
+Control + Alt + Shift + m = rename in scope
 
 Load the packages to be used.
 ```{r echo = FALSE, message = FALSE}
@@ -598,7 +599,7 @@ Stats_StSt <- group_by(Quantiles_SS_dt,
                                      na.rm = TRUE
                                     ),
             TT_Sec_SS_Cnt = sum(!is.na(TravelTime_Sec)),
-            TD_Sec_SS_Cnt_F = sum(!is.na(TravelTime_Sec[TT_Sec_q5 <= TravelTime_Sec & TravelTime_Sec <= TT_Sec_q95]
+            TT_Sec_SS_Cnt_F = sum(!is.na(TravelTime_Sec[TT_Sec_q5 <= TravelTime_Sec & TravelTime_Sec <= TT_Sec_q95]
                                         )
                                  ),
 
@@ -611,12 +612,13 @@ Stats_StSt <- group_by(Quantiles_SS_dt,
                                     na.rm = TRUE
                                    ),
             TT_Hr_SS_Cnt = sum(!is.na(TravelTime_Hr)),
-            TD_Hr_SS_Cnt_F = sum(!is.na(TravelTime_Hr[TT_Hr_q5 <= TravelTime_Hr & TravelTime_Hr <= TT_Hr_q95]
+            TT_Hr_SS_Cnt_F = sum(!is.na(TravelTime_Hr[TT_Hr_q5 <= TravelTime_Hr & TravelTime_Hr <= TT_Hr_q95]
                                        )
                                 )
            )
 
 
+rm(Quantiles_SS_dt)
 View(head(Stats_StSt, 50))
 
 ```
@@ -666,7 +668,7 @@ Stats_StSt_HrGrp <- group_by(Quantiles_SSHG_dt,
                                        na.rm = TRUE
                                       ),
             TT_Sec_SSHG_Cnt = sum(!is.na(TravelTime_Sec)),
-            TD_Sec_SSHG_Cnt_F = sum(!is.na(TravelTime_Sec[TT_Sec_q5 <= TravelTime_Sec & TravelTime_Sec <= TT_Sec_q95]
+            TT_Sec_SSHG_Cnt_F = sum(!is.na(TravelTime_Sec[TT_Sec_q5 <= TravelTime_Sec & TravelTime_Sec <= TT_Sec_q95]
                                           )
                                    ),
 
@@ -679,12 +681,12 @@ Stats_StSt_HrGrp <- group_by(Quantiles_SSHG_dt,
                                       na.rm = TRUE
                                      ),
             TT_Hr_SSHG_Cnt = sum(!is.na(TravelTime_Hr)),
-            TD_Hr_SSHG_Cnt_F = sum(!is.na(TravelTime_Hr[TT_Hr_q5 <= TravelTime_Hr & TravelTime_Hr <= TT_Hr_q95]
+            TT_Hr_SSHG_Cnt_F = sum(!is.na(TravelTime_Hr[TT_Hr_q5 <= TravelTime_Hr & TravelTime_Hr <= TT_Hr_q95]
                                          )
                                   )
            )
 
-
+rm(Quantiles_SSHG_dt)
 View(head(Stats_StSt_HrGrp, 50))
 
 ```
@@ -828,25 +830,43 @@ AllDays_NewOrder <-  select(AllDays_DirChange,
                             TravelDistance_Mi,
                             TravelDistance_Mi_Hvrs,
                             TD_Mi_SS_Mean,
+                            TD_Mi_SS_Mean_F,
                             TD_Mi_SSHG_Mean,
+                            TD_Mi_SSHG_Mean_F,
                             TD_Mi_SS_Med,
+                            TD_Mi_SS_Med_F,
                             TD_Mi_SSHG_Med,
+                            TD_Mi_SSHG_Med_F,
                             TD_Mi_SS_Cnt,
+                            TD_Mi_SS_Cnt_F,
                             TD_Mi_SSHG_Cnt,
+                            TD_Mi_SSHG_Cnt_F,
                             TravelTime_Sec,
                             TT_Sec_SS_Mean,
+                            TT_Sec_SS_Mean_F,
                             TT_Sec_SSHG_Mean,
+                            TT_Sec_SSHG_Mean_F,
                             TT_Sec_SS_Med,
+                            TT_Sec_SS_Med_F,
                             TT_Sec_SSHG_Med,
+                            TT_Sec_SSHG_Med_F,
                             TT_Sec_SS_Cnt,
+                            TT_Sec_SS_Cnt_F,
                             TT_Sec_SSHG_Cnt,
+                            TT_Sec_SSHG_Cnt_F,
                             TravelTime_Hr,
                             TT_Hr_SS_Mean,
+                            TT_Hr_SS_Mean_F,
                             TT_Hr_SSHG_Mean,
+                            TT_Hr_SSHG_Mean_F,
                             TT_Hr_SS_Med,
+                            TT_Hr_SS_Med_F,
                             TT_Hr_SSHG_Med,
+                            TT_Hr_SSHG_Med_F,
                             TT_Hr_SS_Cnt,
+                            TT_Hr_SS_Cnt_F,
                             TT_Hr_SSHG_Cnt,
+                            TT_Hr_SSHG_Cnt_F,
                             SpeedAvg_Mph
                            )
 
@@ -867,693 +887,14 @@ summary(AllDays_NewOrder)
 ```
 
 
-Explore instances where TravelDistance_Mi is NA.
-```{r}
-
-# View(head(AllDays_NewOrder, 500))
-
-View(filter(AllDays_NewOrder,
-            BusDay_EventNum != 1
-           ) %>% 
-       group_by(StartStop_ID) %>% 
-       summarise(Cnts = sum(is.na(TravelDistance_Mi)
-                           )
-                ) %>% 
-       arrange(desc(Cnts)
-              )
-    )
-
-View(filter(AllDays_NewOrder,
-            StartStop_ID == "1000245--1000211"
-           ) %>% 
-       select(RowNum_OG,
-              StartStop_ID,
-              Event_Time_HrGroup,
-              TravelDistance_Mi,
-              TravelDistance_Mi_Hvrs,
-              TD_Mi_SS_Mean,
-              TD_Mi_SSHG_Mean,
-              TD_Mi_SS_Med,
-              TD_Mi_SSHG_Med,
-              TD_Mi_SS_Cnt,
-              TD_Mi_SSHG_Cnt
-              ) %>% 
-       mutate(Ratio_MeanToHvrs = TD_Mi_SS_Mean / TravelDistance_Mi_Hvrs) %>% 
-       arrange(RowNum_OG)
-    )
-
-```
-
-
-Explore instances where TravelDistance_Mi is NA.
-```{r}
-
-View(group_by(AllDays_NewOrder,
-              StartStop_ID
-             ) %>% 
-       summarise(Cnts = sum(is.na(TravelTime_Sec)
-                           )
-                ) %>% 
-       arrange(desc(Cnts)
-              )
-    )
-
-View(filter(AllDays_NewOrder,
-            StartStop_ID == "5004635--5004758"
-           ) %>% 
-       select(TravelTime_Sec,
-              TT_Sec_SS_Mean,
-              TT_Sec_SSHG_Mean,
-              TT_Sec_SS_Med,
-              TT_Sec_SSHG_Med,
-              TT_Sec_SS_Cnt,
-              TT_Sec_SSHG_Cnt
-              )
-    )
-
-```
-
-
-Investigation of Dwell_Time2 (how long the bus is at a stop).
-
-Differences between Dwell_Time (by WMATA) and Dwell_Time2 (by me) appear to be due to switches in RouteAlt. WMATA calculates Dwell_Time by an unknown process. The WMATA calculation is equal to my calculation, except for the records immedaitely before and after a RouteAlt switch (DirChange2).
-```{r}
-
-View(filter(AllDays_NewOrder,
-            Dwell_Time != Dwell_Time2
-           )
-    )
-
-
-# Examples where the Dwell_Time and Dwell_Time2 are different
-View(filter(AllDays_NewOrder,
-            ( (RowNum_OG >= 65 & RowNum_OG <= 85) | # 75
-                (RowNum_OG >= 162 & RowNum_OG <= 192) | # 172
-                (RowNum_OG >= 431952 & RowNum_OG <= 431972) | # 431962
-                (RowNum_OG >= 434595 & RowNum_OG <= 434615) # 434605  --  this record is NOT a route switch, but does has a Sequence switch (Me: should there really be a route switch here?)
-            )
-           )
-    )
-
-```
-
-
-Investigation of Dwell_Time2 (how long the bus is at a stop).
-
-First, create some "rank" stats.
-View(DT2_Pctiles): 95% of Dwell_Time2s are <= 23 seconds...but some weird (e.g., nearly 2 hour Dwell_Time2s exist).
-```{r}
-
-DwellTime2_Ntile <- as.data.frame(AllDays_NewOrder$Dwell_Time2) %>% 
-  mutate(Pctile = ntile(AllDays_NewOrder$Dwell_Time2, 100),
-         MinR = min_rank(AllDays_NewOrder$Dwell_Time2),
-         PctR = percent_rank(AllDays_NewOrder$Dwell_Time2),
-         PctR_Round = round(PctR, 2)
-        ) 
-
-colnames(DwellTime2_Ntile)[1] <- "Dwell_Time2"
-str(DwellTime2_Ntile)
-
-DwellTime2_Ntile_Rows <- nrow(DwellTime2_Ntile)
-
-View(tail(DwellTime2_Ntile, 500))
-
-
-DwellTime2_Pctiles <- group_by(DwellTime2_Ntile,
-                               PctR_Round
-                              ) %>% 
-  summarise(
-    MinDwellAtPctile = min(Dwell_Time2),
-    CntsAtPctile = n(),
-    PctsAtPctile = CntsAtPctile / DwellTime2_Ntile_Rows
-  ) %>% 
-  mutate(CumSumPAtP = cumsum(PctsAtPctile)
-        )
-
-View(DwellTime2_Pctiles)
-
-```
-
-
-Investigation of Dwell_Time2 (how long the bus is at a stop).
-
-Histogram of Dwell_Time2.
-```{r}
-
-DwellTime2_HistDen <- ggplot(AllDays_NewOrder, aes(x = Dwell_Time2, y = ..density..)) +
-  geom_histogram(binwidth = 1, fill = "lightblue", colour = "grey60", size = 0.2) +
-  geom_line(stat = "density", colour = "red") +
-  coord_cartesian(xlim = c(1, 25), ylim = c(0, 0.05)
-                 ) +
-  xlab("Time a Bus Stays at a Stop (sec)") + 
-  ylab("Density") + 
-  #  theme(legend.position="none") + 
-  ggtitle(expression(atop("Variation in How Long a Bus Stays at a Stop"
-                          # ,atop(italic("xxxxx"),"")
-                         )
-                    )
-         )
-
-DwellTime2_HistDen
-
-```
-
-
-Investigation of Dwell_Time2 (how long the bus is at a stop).
-
-Looking at some weirdly long Dwell_Time2 values.
-```{r}
-
-View(arrange(AllDays_NewOrder,
-             desc(Dwell_Time2)
-            )
-    )
-
-
-# examples of extremely large Dwell_Time2s
-View(filter(AllDays_NewOrder,
-            (RowNum_OG >= 292669 & RowNum_OG <= 292689) | # 292679
-                (RowNum_OG >= 531057 & RowNum_OG <= 531077) | # 531067
-                (RowNum_OG >= 1388627 & RowNum_OG <= 1388647) | # 1388637
-                (RowNum_OG >= 1645711 & RowNum_OG <= 1645731) # 1645721
-           )
-    )
-
-
-View(filter(AllDays_NewOrder,
-            Dwell_Time2 == 0
-           )
-    )
-
-```
-
-
-Investigation of Delta_Time (how early or late the bus is).
-
-View(DT2_Pctiles): 94% of Delta_Time values are between -236 seconds and 1,259 seconds. Roughly 66% of records are within 5 min late and 5 min early...but some weird (e.g., almost 50 minute late or 40 minute early) Delta_Times exist.
-
-Note that Delta_Time is the difference from the scheduled bus arrival. So if two buses are scheduled to arrive at a destination at 10:00pm and 10:20pm, and if the 10:20pm bus has a Delta_Time of 5 minutes, there are 25 minutes between bus arrivals at the stop.
-
-Also note that based on a comment at https://planitmetro.com/2016/11/16/data-download-metrobus-vehicle-location-data/, the Delta_Time values don't appear to coincide with published bus schedules (e.g., the X2 departing every 8 minutes during peak hours).
-```{r}
-
-DeltTime_Ntile <- as.data.frame(AllDays_NewOrder$Delta_Time) %>% 
-  mutate(Pctile = ntile(AllDays_NewOrder$Delta_Time, 100),
-         MinR = min_rank(AllDays_NewOrder$Delta_Time),
-         PctR = percent_rank(AllDays_NewOrder$Delta_Time),
-         PctR_Round = round(PctR, 2)
-        ) 
-
-colnames(DeltTime_Ntile)[1] <- "Delta_Time"
-str(DeltTime_Ntile)
-
-DeltTime_Ntile_Rows <- nrow(DeltTime_Ntile)
-
-View(tail(DeltTime_Ntile, 500))
-
-
-DeltTime_Pctiles <- group_by(DeltTime_Ntile,
-                             PctR_Round
-                            ) %>% 
-  summarise(
-    MinDeltTimeAtPctile = min(Delta_Time),
-    CntsAtPctile = n(),
-    PctsAtPctile = CntsAtPctile / DeltTime_Ntile_Rows
-  ) %>% 
-  mutate(CumSumPAtP = cumsum(PctsAtPctile)
-        )
-
-View(DeltTime_Pctiles)
-DeltTime_Pctiles
-
-# ~66% of rows are between 5 min late and 5 min early
-nrow(filter(AllDays_NewOrder,
-            Delta_Time >= -300 &
-              Delta_Time <= 300
-           )
-    ) / nrow(AllDays_NewOrder)
-
-
-# examples of weird large Delta_Times
-View(filter(AllDays_NewOrder,
-            Delta_Time < -4202 |
-              Delta_Time > 1705
-           ) %>% 
-       arrange(desc(Delta_Time)
-              )
-    )
-
-```
-
-
-Investigation of Delta_Time (how early or late the bus is).
-
-Delta_Time histogram.
-```{r}
-
-DeltTime_HistDen <- ggplot(AllDays_NewOrder, aes(x = (Delta_Time / 60),
-                                                 y = ..density..
-                                                )
-                          ) +
-  geom_histogram(binwidth = (5/60), fill = "lightblue", colour = "grey60", size = 0.2) +
-  geom_line(stat = "density", colour = "red") +
-  coord_cartesian(xlim = c(-5, 5)) +
-  xlab("Bus Lateness (min)") + 
-  ylab("Density") + 
-  #  theme(legend.position="none") + 
-  ggtitle(expression(atop("Variation in How Early/Late a Bus Is",
-                          atop(italic("(positive values are late arrivals)"),
-                               ""
-                              )
-                         )
-                    )
-         )
-
-DeltTime_HistDen
-
-```
-
-
-Investigation of Delta_Time (how early or late the bus is).
-
-Delta_Time boxplot.
-```{r}
-
-# Count_Values is needed to display the medians on the box plots
-Count_Values <- ddply(AllDays_NewOrder,
-                      .(Event_Time_HrGroup),
-                      summarise,
-                      Value_Counts = median(Delta_Time / 60, na.rm = TRUE)
-                     )
-
-DeltTime_BoxPlot <- ggplot(AllDays_NewOrder,
-                           aes(factor(Event_Time_HrGroup),
-                               Delta_Time / 60,
-                               fill = factor(Event_Time_HrGroup)
-                              )
-                          ) + 
-  geom_boxplot(outlier.colour="red", notch=TRUE) + 
-  # coord_cartesian(ylim = c(-300, 1200)) +
-  coord_cartesian(ylim = c(-5, 20)) +
-  geom_text(data = Count_Values,
-            aes(y = Value_Counts,
-                label = format(round(Value_Counts, digits = 1),
-                               nsmall = 1
-                              )
-               ),
-            size = 3,
-            vjust = -0.5
-           ) +
-  xlab("Hour Group") + 
-  ylab("Bus Lateness (minutes)") + 
-  theme(legend.position="none", axis.text.x = element_text(angle=45)) + 
-  #theme(legend.position="right", axis.text.x = element_blank()) + 
-  ggtitle(expression(atop("How Early/Late is the Bus (by Hour Group)",
-                          atop(italic("(positive values are late arrivals)"),
-                               ""
-                              )
-                         )
-                    )
-         )
-
-DeltTime_BoxPlot
-
-```
-
-
-Investigation of Delta_Time (how early or late the bus is).
-
-Exploring "extreme" Delta_Times.  First let's get some "rank" stats.
-```{r}
-
-View(DeltTime_Pctiles)
-DeltTime_Pctiles
-
-
-DeltTimeAbs_Ntile <- as.data.frame(abs(AllDays_NewOrder$Delta_Time)) %>% 
-  mutate(Pctile = ntile(abs(AllDays_NewOrder$Delta_Time), 100),
-         MinR = min_rank(abs(AllDays_NewOrder$Delta_Time)),
-         PctR = percent_rank(abs(AllDays_NewOrder$Delta_Time)),
-         PctR_Round = round(PctR, 2)
-        ) 
-
-colnames(DeltTimeAbs_Ntile)[1] <- "Delta_Time_Abs"
-str(DeltTimeAbs_Ntile)
-
-DeltTimeAbs_Ntile_Rows <- nrow(DeltTimeAbs_Ntile)
-
-View(tail(DeltTimeAbs_Ntile, 500))
-
-
-DeltTimeAbs_Pctiles <- group_by(DeltTimeAbs_Ntile,
-                                PctR_Round
-                               ) %>% 
-  summarise(
-    MinDeltTimeAtPctile = min(Delta_Time_Abs),
-    CntsAtPctile = n(),
-    PctsAtPctile = CntsAtPctile / DeltTime_Ntile_Rows
-  ) %>% 
-  mutate(CumSumPAtP = cumsum(PctsAtPctile)
-        )
-
-View(DeltTimeAbs_Pctiles)
-DeltTimeAbs_Pctiles
-
-```
-
-
-Investigation of Delta_Time (how early or late the bus is).
-
-Exploring "extreme" Delta_Times.  Then let's calculate the percentage of buses that are 10 minutes (or more) late/early.
-```{r}
-
-HrGroup_DeltaTime_All <- group_by(AllDays_NewOrder,
-                                  Event_Time_HrGroup
-                                 ) %>% 
-  summarise(EventAll_Cnt = n()
-           )
-
-str(HrGroup_DeltaTime_All)
-View(HrGroup_DeltaTime_All)
-
-
-HrGroup_DeltaTime_Above10Min <- filter(AllDays_NewOrder,
-                                       abs(Delta_Time) >= 600
-                                      ) %>% 
-  group_by(Event_Time_HrGroup) %>% 
-  summarise(EventAbove10_Cnt = n()
-           )
-
-str(HrGroup_DeltaTime_Above10Min)
-View(HrGroup_DeltaTime_Above10Min)
-
-
-HrGroup_DeltaTimeCompare <- inner_join(HrGroup_DeltaTime_Above10Min,
-                                       HrGroup_DeltaTime_All,
-                                       by = c("Event_Time_HrGroup" = "Event_Time_HrGroup")
-                                      ) %>% 
-  mutate(PctEventsAbove10 = EventAbove10_Cnt / EventAll_Cnt)
-
-View(HrGroup_DeltaTimeCompare)
-
-```
-
-
-Investigation of Delta_Time (how early or late the bus is).
-
-Quickly plot these "extreme" Delta_Times. 
-```{r}
-
-DeltTime_Above10_Cols <- ggplot(HrGroup_DeltaTimeCompare,
-                                aes(factor(Event_Time_HrGroup),
-                                    PctEventsAbove10
-                                   )
-                               ) +
-  geom_col(fill = "lightblue", colour = "grey60", size = 0.2) +
-  geom_text(aes(label = format(round(PctEventsAbove10, digits = 2),
-                               nsmall = 2
-                              )
-               ),
-            size = 3,
-            nudge_y = (HrGroup_DeltaTimeCompare$PctEventsAbove10 * -0.1)
-           ) +
-  # coord_cartesian(xlim = c(-5, 5)) +
-  xlab("Hour Group") + 
-  ylab("Percent of All Bus Arrivals") +
-  theme(legend.position="none", axis.text.x = element_text(angle=45)) +
-  ggtitle(expression(atop("When is a Bus 10+ Minutes Late/Early"
-                          # ,atop(italic("positive values are late arrivals"),
-                          #      ""
-                          #     )
-                         )
-                    )
-         )
-
-DeltTime_Above10_Cols
-
-```
-
-
-Quick investigation on the relationship between Dwell_Time2 (the time a bus is at a stop) and Delta_Time (how early/late the bus is).
-
-Correlation.
-```{r}
-
-DwellTDeltaT_Corr <- as.matrix(cor(x = AllDays_NewOrder$Dwell_Time2,
-                                   y = AllDays_NewOrder$Delta_Time,
-                                   use = "pairwise"
-                                  )
-                               )
-
-DwellTDeltaT_Corr
-
-```
-
-
-Quick investigation on the relationship between Dwell_Time2 (the time a bus is at a stop) and Delta_Time (how early/late the bus is).
-
-First, let's get create a function to plot the liner model equation.
-```{r}
-
-lm_eqn <- function(df, y, x){
-  m <- lm(y ~ x, df)
-  
-  l <- list(a = format(coef(m)[1], digits = 2),
-            b = format(abs(coef(m)[2]), digits = 2),
-            s1 = ifelse(test = coef(m)[2] > 0,
-                        yes = "+",
-                        no = "-"
-                       ),
-            r2 = format(summary(m)$r.squared,
-                        digits = 3
-                       )
-           )
-  
-  eq <- substitute(italic(y) == a~~s1~~b %.% italic(x)*","~~italic(r)^2~"="~r2,
-                   l
-                  )
-  
-  as.character(as.expression(eq)
-              )             
-}
-
-```
-
-
-Quick investigation on the relationship between Dwell_Time2 (the time a bus is at a stop) and Delta_Time (how early/late the bus is).
-
-Next, let's get a sample of data for plotting. Let's do this for the full dataset (AllDays_NewOrder).
-```{r}
-
-AllDays_NewOrder_10PctSamp <- sample_frac(AllDays_NewOrder, 0.1) %>% 
-  select(Delta_Time,
-         Dwell_Time2
-        ) %>% 
-  mutate(DataSet = "AllData")
-
-str(AllDays_NewOrder_10PctSamp)
-
-```
-
-
-Quick investigation on the relationship between Dwell_Time2 (the time a bus is at a stop) and Delta_Time (how early/late the bus is).
-
-Let's also get a sample of data for plotting, but with a datset that removes outliers.
-```{r}
-
-View(DeltTime_Pctiles)
-View(DwellTime2_Pctiles)
-
-AllDays_NewOrder_NoExtremes_10PctSamp <- filter(AllDays_NewOrder,
-                                                between(Delta_Time, -402, 1705) & # removes about 2% of Delta_Time values
-                                                  between(Dwell_Time2, 1, 63)  # removes about 2% of Dwell_Time2 values
-                                               ) %>% 
-  sample_frac(0.1) %>% 
-  select(Delta_Time,
-         Dwell_Time2
-        ) %>% 
-  mutate(DataSet = "OutliersRemoved")
-
-str(AllDays_NewOrder_NoExtremes_10PctSamp)
-
-```
-
-
-Quick investigation on the relationship between Dwell_Time2 (the time a bus is at a stop) and Delta_Time (how early/late the bus is).
-
-Plotting the data from the dataset that does not remove outliers.
-```{r}
-
-DwellTDeltaT_Scatter <- ggplot(AllDays_NewOrder_10PctSamp,
-                               aes(Dwell_Time2, Delta_Time)
-                              ) +
-  geom_point(shape = 1, alpha = 0.5) +
-  scale_shape(solid = FALSE) +
-  geom_smooth(method = "lm", colour = "red") +
-  # xlab("Time at Stop (sec)") + 
-  # ylab("Lateness (sec)") +
-  annotate(label = lm_eqn(df = AllDays_NewOrder_10PctSamp,
-                          y = AllDays_NewOrder_10PctSamp$Delta_Time,
-                          x = AllDays_NewOrder_10PctSamp$Dwell_Time2
-                         ),
-           x = 2200,
-           y = 600,
-           geom = "text",
-           size = 3,
-           colour = "red",
-           parse = TRUE
-          ) +
-  labs(title = "Lateness vs Time at Stop",
-       subtitle = "(no outliers removed)",
-       x = "Time at Stop (sec)",
-       y = "Lateness (sec)"
-      )
-  # ggtitle(expression(atop("Lateness vs Time at Stop"
-  #                         ,atop(italic("(no outliers removed)"),
-  #                               ""
-  #                              )
-  #                        )
-  #                   )
-  #        )
-# +
-#   geom_jitter()
-
-DwellTDeltaT_Scatter
-
-```
-
-
-Quick investigation on the relationship between Dwell_Time2 (the time a bus is at a stop) and Delta_Time (how early/late the bus is).
-
-Plotting the data from the dataset that does remove outliers.
-```{r}
-
-DwellTDeltaT_Scatter_NoExtremes <- ggplot(AllDays_NewOrder_NoExtremes_10PctSamp,
-                                          aes(Dwell_Time2, Delta_Time)
-                                         ) +
-  geom_point(shape = 1, alpha = 0.5) +
-  scale_shape(solid = FALSE) +
-  geom_smooth(method = "lm", colour = "blue") +
-  # xlab("Time at Stop (sec)") + 
-  # ylab("Lateness (sec)") +
-  annotate(label = lm_eqn(df = AllDays_NewOrder_NoExtremes_10PctSamp,
-                          y = AllDays_NewOrder_NoExtremes_10PctSamp$Delta_Time,
-                          x = AllDays_NewOrder_NoExtremes_10PctSamp$Dwell_Time2
-                         ),
-           x = 50,
-           y = -475,
-           geom = "text",
-           size = 3,
-           colour = "blue",
-           parse = TRUE
-          ) +
-  labs(title = "Lateness vs Time at Stop",
-       subtitle = "(2% of outliers removed)",
-       x = "Time at Stop (sec)",
-       y = "Lateness (sec)"
-      )
-  # ggtitle(expression(atop("Lateness vs Time at Stop"
-  #                         ,atop(italic("(2% of outliers removed)"),
-  #                               ""
-  #                              )
-  #                        )
-  #                   )
-  #        )
-# +
-#   geom_jitter()
-
-DwellTDeltaT_Scatter_NoExtremes
-
-```
-
-
-Quick investigation on the relationship between Dwell_Time2 (the time a bus is at a stop) and Delta_Time (how early/late the bus is).
-
-Plotting the data from both datasets together.
-```{r}
-
-CombinedData <- rbind(AllDays_NewOrder_10PctSamp,
-                      AllDays_NewOrder_NoExtremes_10PctSamp
-                     )
-
-CombinedData$DataSet <- factor(CombinedData$DataSet)
-
-str(CombinedData)
-
-
-DwellTDeltaT_Scatter_Combined <- ggplot(CombinedData,
-                                        aes(x = Dwell_Time2,
-                                            y = Delta_Time,
-                                            colour = DataSet
-                                           )
-                                       ) +
-  geom_point(shape = 1, alpha = 0.5) +
-  scale_shape(solid = FALSE) +
-  coord_cartesian(xlim = c(0, 500), ylim = c(-1000, 2000)
-                 ) +
-  geom_smooth(data = filter(CombinedData,
-                            DataSet == "AllData"
-                           ),
-              method = "lm",
-              colour = "red"
-             ) +
-  geom_smooth(data = filter(CombinedData,
-                            DataSet == "OutliersRemoved"
-                           ),
-              method = "lm",
-              colour = "blue"
-             ) +
-  # facet_wrap( ~ DataSet, ncol = 2) +
-  annotate(label = lm_eqn(df = AllDays_NewOrder_10PctSamp,
-                          y = AllDays_NewOrder_10PctSamp$Delta_Time,
-                          x = AllDays_NewOrder_10PctSamp$Dwell_Time2
-                         ),
-           x = 300,
-           y = -600,
-           geom = "text",
-           size = 3,
-           colour = "red",
-           parse = TRUE
-          ) +
-  annotate(label = lm_eqn(df = AllDays_NewOrder_NoExtremes_10PctSamp,
-                          y = AllDays_NewOrder_NoExtremes_10PctSamp$Delta_Time,
-                          x = AllDays_NewOrder_NoExtremes_10PctSamp$Dwell_Time2
-                         ),
-           x = 300,
-           y = -800,
-           geom = "text",
-           size = 3,
-           colour = "blue",
-           parse = TRUE
-          ) +
-  theme(legend.position = "bottom") +
-  labs(title = "Lateness vs Time at Stop",
-       x = "Time at Stop (sec)",
-       y = "Lateness (sec)"
-      )
-  # ggtitle(expression(atop("Lateness vs Time at Stop"
-                          # ,atop(italic("2% of outliers removed"),
-                          #       ""
-                          #      )
-         #                 )
-         #            )
-         # )
-# +
-#   geom_jitter()
-
-DwellTDeltaT_Scatter_Combined
-
-```
-
-
 Investigation of TravelDistance_Mi.
 
 View(TravDistMi_Pctiles): 99% of TravelDistance_Mi are about 1 mile or less...but some weird TravelDistance_Mi values (e.g., 584 miles traveled) exist.
 ```{r}
 
 TravDistMi_Ntile <- as.data.frame(AllDays_NewOrder$TravelDistance_Mi) %>% 
-  mutate(Pctile = ntile(AllDays_NewOrder$TravelDistance_Mi, 100),
-         MinR = min_rank(AllDays_NewOrder$TravelDistance_Mi),
+  mutate(#Pctile = ntile(AllDays_NewOrder$TravelDistance_Mi, 100),
+         #MinR = min_rank(AllDays_NewOrder$TravelDistance_Mi),
          PctR = percent_rank(AllDays_NewOrder$TravelDistance_Mi),
          PctR_Round = round(PctR, 2)
         ) 
@@ -1577,6 +918,8 @@ TravDistMi_Pctiles <- group_by(TravDistMi_Ntile,
   mutate(CumSumPAtP = cumsum(PctsAtPctile)
         )
 
+rm(TravDistMi_Ntile)
+rm(TravDistMi_Ntile_Rows)
 View(TravDistMi_Pctiles)
 
 ```
@@ -1586,6 +929,46 @@ Investigation of TravelDistance_Mi.
 
 Why are some TravelDistance_Mi "NA"? It looks like partially because the records are the first trip of the day (for that bus), so I purposefully set the distance to "NA". Another reason is due to the odometer recording a value less than the previous odometer recording. In most cases, I have no explanation for this - though I have observed about 67% of all instances where TravelDistance_Mi is NA (other than because it's the first record of the day) are instances where DirChange2 is "Change". This is weird and should be asked to WMATA.
 ```{r}
+
+# View(head(AllDays_NewOrder, 500))
+
+View(filter(AllDays_NewOrder,
+            BusDay_EventNum != 1 # When BusDay_EventNum == 1, TravelDistance_Mi is NA by design (don't want to calculate distance based on yesterday's position)
+           ) %>% 
+       group_by(StartStop_ID) %>% 
+       summarise(Cnts = sum(is.na(TravelDistance_Mi)
+                           )
+                ) %>% 
+       arrange(desc(Cnts)
+              )
+    )
+
+View(filter(AllDays_NewOrder,
+            StartStop_ID == "1000245--1000211"
+           ) %>% 
+       select(RowNum_OG,
+              StartStop_ID,
+              Event_Time,
+              Event_Time_HrGroup,
+              Bus_ID,
+              TravelDistance_Mi,
+              TravelDistance_Mi_Hvrs,
+              TD_Mi_SS_Mean,
+              TD_Mi_SS_Mean_F,
+              TD_Mi_SSHG_Mean,
+              TD_Mi_SSHG_Mean_F,
+              TD_Mi_SS_Med,
+              TD_Mi_SS_Med_F,
+              TD_Mi_SSHG_Med,
+              TD_Mi_SSHG_Med_F,
+              TD_Mi_SS_Cnt,
+              TD_Mi_SS_Cnt_F,
+              TD_Mi_SSHG_Cnt,
+              TD_Mi_SSHG_Cnt_F
+              ) %>% 
+       mutate(Ratio_MeanToHvrs = TD_Mi_SS_Mean / TravelDistance_Mi_Hvrs) %>% 
+       arrange(Event_Time)
+    )
 
 View(filter(AllDays_NewOrder,
             is.na(TravelDistance_Mi)
@@ -1600,7 +983,14 @@ View(filter(AllDays_NewOrder,
            )
     )
 
-# These records are NA becuase the current record odometer is less than the previous record odometer. Theoretically, this should NOT happen. Me: it appears that about 67% of all instances where TravelDistance_Mi is NA (other than because it's th first record of the day) are instances where DirChange2 is "Change". This is weird and should be asked to WMATA.
+```
+
+
+Investigation of TravelDistance_Mi.
+
+These records are NA becuase the current record odometer is less than the previous record odometer. Theoretically, this should NOT happen. Me: it appears that about 67% of all instances where TravelDistance_Mi is NA (other than because it's th first record of the day) are instances where DirChange2 is "Change". This is weird and should be asked to WMATA.
+```{r}
+
 View(filter(AllDays_NewOrder,
             between(RowNum_OG, 194, 214) | # 204
               between(RowNum_OG, 440, 460) | # 450
@@ -1618,7 +1008,7 @@ TestTable <- filter(AllDays_NewOrder,
                                              )
                                       )
         ) %>%
-  group_by(DirChange2,TravelDistance_NA) %>%
+  group_by(DirChange2, TravelDistance_NA) %>%
   summarise(TravDistMi_NACnts = n()
            )
 
@@ -1646,6 +1036,9 @@ prop.table(as.table(as.matrix(TestTable_Spread)
                    ),
            2
           )
+
+rm(TestTable)
+rm(TestTable_Spread)
 
 ```
 
@@ -1675,25 +1068,25 @@ Investigation of TravelDistance_Mi.
 Let's plot just the TravelDistance_Mi values that are NOT "NA".
 ```{r}
 
-TravDistMi_HistDen <- ggplot(TravelDistance_Mi_NoNA, aes(x = TravelDistance_Mi,
-                                                         y = ..density..
-                                                        )
+TravDistMi_HistDen <- ggplot(select(TravelDistance_Mi_NoNA,
+                                    TravelDistance_Mi
+                                   ),
+                             aes(x = TravelDistance_Mi,
+                                 y = ..density..
+                                )
                             ) +
   geom_histogram(binwidth = 0.05, fill = "lightblue", colour = "grey60", size = 0.2) +
   geom_line(stat = "density", colour = "red") +
-  coord_cartesian(xlim = c(0, 1.5), ylim = c(0, 3.5)
+  coord_cartesian(xlim = c(0, 1.5), ylim = c(0, 4.0)
                  ) +  # 0.0001893939 is the value at the 11th percentile (& the 1st percentile with non-zero values)
                       # 1.0812500000 is the 99th percentile
-  xlab("Travel Distance (miles)") + 
-  ylab("Density") + 
-  #  theme(legend.position="none") + 
-  ggtitle(expression(atop("Variation in Distance Between Stops"
-                          # ,atop(italic("xxxxx"),"")
-                         )
-                    )
-         )
+  labs(title = "Variation in Distance Between Stops",
+       x = "Travel Distance (miles)",
+       y = "Density"
+      )
 
 TravDistMi_HistDen
+# rm(TravelDistance_Mi_NoNA)
 
 ```
 
@@ -1702,17 +1095,16 @@ Investigation of TravelDistance_Mi.
 Looking at the extremely large TravelDistance_Mi values. Some (aprox 27%) of TravelDistance_Mi values > 1 mile are when the DirChange2 changes...but what about the other ~73%?
 ```{r}
 
-
 # examples of weirdly large TravelDistance_Mi
 View(filter(AllDays_NewOrder,
-            TravelDistance_Mi > 1 # 1.0812500000 is the 99th percentile
+            TravelDistance_Mi > 1.1587121212 # 1.1587121212 is the 99th percentile
            ) %>% 
        arrange(desc(TravelDistance_Mi)
               )
     )
 
 
-# Why are these extremes?
+# Why are these extremes?  Airports?  Bus collection points?
 View(filter(AllDays_NewOrder,
               between(RowNum_OG, 494044, 494064) | # 494054
               between(RowNum_OG, 494273, 494293) | # 494283
@@ -1742,11 +1134,18 @@ View(filter(AllDays_FirstStopID,
            )
     )
 
+```
+
+
+Investigation of TravelDistance_Mi.
+
+Any relation with DirChange2?  Doesn't look as if this is so.
+```{r}
 
 ExtremeTravDist <- filter(AllDays_NewOrder,
                           !is.na(TravelDistance_Mi)
                          ) %>% 
-  mutate(TravDist_Extreme = ifelse(TravelDistance_Mi > 1,
+  mutate(TravDist_Extreme = ifelse(TravelDistance_Mi > 1.1587121212, # 1.1587121212 is the 99th percentile
                                    "True",
                                    "False"
                                   )
@@ -1781,20 +1180,29 @@ prop.table(as.table(as.matrix(ExtremeTravDist_Spread)
            2
           )
 
+rm(ExtremeTravDist)
+rm(ExtremeTravDist_Spread)
 
-DistByBus <- group_by(AllDays_NewOrder,
+```
+
+
+Investigatio of TravelDistance_Mi.
+
+Looking at specific buses and StartStop_ID.
+
+```{r}
+
+View(arrange(group_by(AllDays_NewOrder,
                       Bus_ID
                      ) %>% 
-  summarise(DistTrav_Mean = mean(TravelDistance_Mi, na.rm = TRUE),
-            DistTrav_Med = median(TravelDistance_Mi, na.rm = TRUE)
-           )
-
-View(arrange(DistByBus,
+               summarise(DistTrav_Mean = mean(TravelDistance_Mi, na.rm = TRUE),
+                         DistTrav_Med = median(TravelDistance_Mi, na.rm = TRUE)
+                        ),
              desc(DistTrav_Med)
             )
     )
 
-# head(AllDays_NewOrder)
+
 # example of extremely small TravelDistance_Mi values (looks like the odometer wasn't functioning)
 View(filter(AllDays_NewOrder,
             Bus_ID == 6111 |
@@ -1802,6 +1210,26 @@ View(filter(AllDays_NewOrder,
               Bus_ID == 8058
            ) %>% 
        arrange(Bus_ID, Event_Time)
+    )
+
+
+View(arrange(group_by(AllDays_NewOrder,
+                      StartStop_ID
+                     ) %>% 
+               summarise(DistTrav_Mean = mean(TravelDistance_Mi, na.rm = TRUE),
+                         DistTrav_Med = median(TravelDistance_Mi, na.rm = TRUE)
+                        ),
+             desc(DistTrav_Med)
+            )
+    )
+
+# example of extremely large TravelDistance_Mi values...no idea why...
+View(filter(AllDays_NewOrder,
+            StartStop_ID == "1003665--12" |
+              StartStop_ID == "1003665--5001925" |
+              StartStop_ID == "3001038--3002565"
+           ) %>% 
+       arrange(StartStop_ID, Event_Time)
     )
 
 ```
@@ -1857,6 +1285,34 @@ TravDist_Corr
 Investigation of TravelDistance_Mi & TravelDistance_Mi_Hvrs & TravelDistance_Mi_New.
 
 Graphing the two methods of calculating TravelDistance_Mi.
+
+First, let's get create a function to plot the liner model equation.
+```{r}
+
+lm_eqn <- function(df, y, x){
+  m <- lm(y ~ x, df)
+  
+  l <- list(a = format(coef(m)[1], digits = 2),
+            b = format(abs(coef(m)[2]), digits = 2),
+            s1 = ifelse(test = coef(m)[2] > 0,
+                        yes = "+",
+                        no = "-"
+                       ),
+            r2 = format(summary(m)$r.squared,
+                        digits = 3
+                       )
+           )
+  
+  eq <- substitute(italic(y) == a~~s1~~b %.% italic(x)*","~~italic(r)^2~"="~r2,
+                   l
+                  )
+  
+  as.character(as.expression(eq)
+              )             
+}
+
+```
+
 ```{r}
 
 AllDays_NewTravelDist_10Pct <- filter(AllDays_NewTravelDist,
@@ -2042,6 +1498,35 @@ View(filter(AllDays_NewTravelDist,
                 (RowNum_OG >= 154784 & RowNum_OG <= 154804) | # 154794  --  
                 (RowNum_OG >= 2267431 & RowNum_OG <= 2267451) # 2267441  --  
            )
+    )
+
+```
+
+
+Explore instances where TravelDistance_Mi is NA.
+```{r}
+
+View(group_by(AllDays_NewOrder,
+              StartStop_ID
+             ) %>% 
+       summarise(Cnts = sum(is.na(TravelTime_Sec)
+                           )
+                ) %>% 
+       arrange(desc(Cnts)
+              )
+    )
+
+View(filter(AllDays_NewOrder,
+            StartStop_ID == "5004635--5004758"
+           ) %>% 
+       select(TravelTime_Sec,
+              TT_Sec_SS_Mean,
+              TT_Sec_SSHG_Mean,
+              TT_Sec_SS_Med,
+              TT_Sec_SSHG_Med,
+              TT_Sec_SS_Cnt,
+              TT_Sec_SSHG_Cnt
+              )
     )
 
 ```
@@ -2613,6 +2098,589 @@ str(UpperLimitTravTime)
 summary(UpperLimitTravTime)
 
 ```
+
+
+Investigation of Dwell_Time2 (how long the bus is at a stop).
+
+Differences between Dwell_Time (by WMATA) and Dwell_Time2 (by me) appear to be due to switches in RouteAlt. WMATA calculates Dwell_Time by an unknown process. The WMATA calculation is equal to my calculation, except for the records immedaitely before and after a RouteAlt switch (DirChange2).
+```{r}
+
+View(filter(AllDays_NewOrder,
+            Dwell_Time != Dwell_Time2
+           )
+    )
+
+
+# Examples where the Dwell_Time and Dwell_Time2 are different
+View(filter(AllDays_NewOrder,
+            ( (RowNum_OG >= 65 & RowNum_OG <= 85) | # 75
+                (RowNum_OG >= 162 & RowNum_OG <= 192) | # 172
+                (RowNum_OG >= 431952 & RowNum_OG <= 431972) | # 431962
+                (RowNum_OG >= 434595 & RowNum_OG <= 434615) # 434605  --  this record is NOT a route switch, but does has a Sequence switch (Me: should there really be a route switch here?)
+            )
+           )
+    )
+
+```
+
+
+Investigation of Dwell_Time2 (how long the bus is at a stop).
+
+First, create some "rank" stats.
+View(DT2_Pctiles): 95% of Dwell_Time2s are <= 23 seconds...but some weird (e.g., nearly 2 hour Dwell_Time2s exist).
+```{r}
+
+DwellTime2_Ntile <- as.data.frame(AllDays_NewOrder$Dwell_Time2) %>% 
+  mutate(Pctile = ntile(AllDays_NewOrder$Dwell_Time2, 100),
+         MinR = min_rank(AllDays_NewOrder$Dwell_Time2),
+         PctR = percent_rank(AllDays_NewOrder$Dwell_Time2),
+         PctR_Round = round(PctR, 2)
+        ) 
+
+colnames(DwellTime2_Ntile)[1] <- "Dwell_Time2"
+str(DwellTime2_Ntile)
+
+DwellTime2_Ntile_Rows <- nrow(DwellTime2_Ntile)
+
+View(tail(DwellTime2_Ntile, 500))
+
+
+DwellTime2_Pctiles <- group_by(DwellTime2_Ntile,
+                               PctR_Round
+                              ) %>% 
+  summarise(
+    MinDwellAtPctile = min(Dwell_Time2),
+    CntsAtPctile = n(),
+    PctsAtPctile = CntsAtPctile / DwellTime2_Ntile_Rows
+  ) %>% 
+  mutate(CumSumPAtP = cumsum(PctsAtPctile)
+        )
+
+View(DwellTime2_Pctiles)
+
+```
+
+
+Investigation of Dwell_Time2 (how long the bus is at a stop).
+
+Histogram of Dwell_Time2.
+```{r}
+
+DwellTime2_HistDen <- ggplot(AllDays_NewOrder, aes(x = Dwell_Time2, y = ..density..)) +
+  geom_histogram(binwidth = 1, fill = "lightblue", colour = "grey60", size = 0.2) +
+  geom_line(stat = "density", colour = "red") +
+  coord_cartesian(xlim = c(1, 25), ylim = c(0, 0.05)
+                 ) +
+  xlab("Time a Bus Stays at a Stop (sec)") + 
+  ylab("Density") + 
+  #  theme(legend.position="none") + 
+  ggtitle(expression(atop("Variation in How Long a Bus Stays at a Stop"
+                          # ,atop(italic("xxxxx"),"")
+                         )
+                    )
+         )
+
+DwellTime2_HistDen
+
+```
+
+
+Investigation of Dwell_Time2 (how long the bus is at a stop).
+
+Looking at some weirdly long Dwell_Time2 values.
+```{r}
+
+View(arrange(AllDays_NewOrder,
+             desc(Dwell_Time2)
+            )
+    )
+
+
+# examples of extremely large Dwell_Time2s
+View(filter(AllDays_NewOrder,
+            (RowNum_OG >= 292669 & RowNum_OG <= 292689) | # 292679
+                (RowNum_OG >= 531057 & RowNum_OG <= 531077) | # 531067
+                (RowNum_OG >= 1388627 & RowNum_OG <= 1388647) | # 1388637
+                (RowNum_OG >= 1645711 & RowNum_OG <= 1645731) # 1645721
+           )
+    )
+
+
+View(filter(AllDays_NewOrder,
+            Dwell_Time2 == 0
+           )
+    )
+
+```
+
+
+Investigation of Delta_Time (how early or late the bus is).
+
+View(DT2_Pctiles): 94% of Delta_Time values are between -236 seconds and 1,259 seconds. Roughly 66% of records are within 5 min late and 5 min early...but some weird (e.g., almost 50 minute late or 40 minute early) Delta_Times exist.
+
+Note that Delta_Time is the difference from the scheduled bus arrival. So if two buses are scheduled to arrive at a destination at 10:00pm and 10:20pm, and if the 10:20pm bus has a Delta_Time of 5 minutes, there are 25 minutes between bus arrivals at the stop.
+
+Also note that based on a comment at https://planitmetro.com/2016/11/16/data-download-metrobus-vehicle-location-data/, the Delta_Time values don't appear to coincide with published bus schedules (e.g., the X2 departing every 8 minutes during peak hours).
+```{r}
+
+DeltTime_Ntile <- as.data.frame(AllDays_NewOrder$Delta_Time) %>% 
+  mutate(Pctile = ntile(AllDays_NewOrder$Delta_Time, 100),
+         MinR = min_rank(AllDays_NewOrder$Delta_Time),
+         PctR = percent_rank(AllDays_NewOrder$Delta_Time),
+         PctR_Round = round(PctR, 2)
+        ) 
+
+colnames(DeltTime_Ntile)[1] <- "Delta_Time"
+str(DeltTime_Ntile)
+
+DeltTime_Ntile_Rows <- nrow(DeltTime_Ntile)
+
+View(tail(DeltTime_Ntile, 500))
+
+
+DeltTime_Pctiles <- group_by(DeltTime_Ntile,
+                             PctR_Round
+                            ) %>% 
+  summarise(
+    MinDeltTimeAtPctile = min(Delta_Time),
+    CntsAtPctile = n(),
+    PctsAtPctile = CntsAtPctile / DeltTime_Ntile_Rows
+  ) %>% 
+  mutate(CumSumPAtP = cumsum(PctsAtPctile)
+        )
+
+View(DeltTime_Pctiles)
+DeltTime_Pctiles
+
+# ~66% of rows are between 5 min late and 5 min early
+nrow(filter(AllDays_NewOrder,
+            Delta_Time >= -300 &
+              Delta_Time <= 300
+           )
+    ) / nrow(AllDays_NewOrder)
+
+
+# examples of weird large Delta_Times
+View(filter(AllDays_NewOrder,
+            Delta_Time < -4202 |
+              Delta_Time > 1705
+           ) %>% 
+       arrange(desc(Delta_Time)
+              )
+    )
+
+```
+
+
+Investigation of Delta_Time (how early or late the bus is).
+
+Delta_Time histogram.
+```{r}
+
+DeltTime_HistDen <- ggplot(AllDays_NewOrder, aes(x = (Delta_Time / 60),
+                                                 y = ..density..
+                                                )
+                          ) +
+  geom_histogram(binwidth = (5/60), fill = "lightblue", colour = "grey60", size = 0.2) +
+  geom_line(stat = "density", colour = "red") +
+  coord_cartesian(xlim = c(-5, 5)) +
+  xlab("Bus Lateness (min)") + 
+  ylab("Density") + 
+  #  theme(legend.position="none") + 
+  ggtitle(expression(atop("Variation in How Early/Late a Bus Is",
+                          atop(italic("(positive values are late arrivals)"),
+                               ""
+                              )
+                         )
+                    )
+         )
+
+DeltTime_HistDen
+
+```
+
+
+Investigation of Delta_Time (how early or late the bus is).
+
+Delta_Time boxplot.
+```{r}
+
+# Count_Values is needed to display the medians on the box plots
+Count_Values <- ddply(AllDays_NewOrder,
+                      .(Event_Time_HrGroup),
+                      summarise,
+                      Value_Counts = median(Delta_Time / 60, na.rm = TRUE)
+                     )
+
+DeltTime_BoxPlot <- ggplot(AllDays_NewOrder,
+                           aes(factor(Event_Time_HrGroup),
+                               Delta_Time / 60,
+                               fill = factor(Event_Time_HrGroup)
+                              )
+                          ) + 
+  geom_boxplot(outlier.colour="red", notch=TRUE) + 
+  # coord_cartesian(ylim = c(-300, 1200)) +
+  coord_cartesian(ylim = c(-5, 20)) +
+  geom_text(data = Count_Values,
+            aes(y = Value_Counts,
+                label = format(round(Value_Counts, digits = 1),
+                               nsmall = 1
+                              )
+               ),
+            size = 3,
+            vjust = -0.5
+           ) +
+  xlab("Hour Group") + 
+  ylab("Bus Lateness (minutes)") + 
+  theme(legend.position="none", axis.text.x = element_text(angle=45)) + 
+  #theme(legend.position="right", axis.text.x = element_blank()) + 
+  ggtitle(expression(atop("How Early/Late is the Bus (by Hour Group)",
+                          atop(italic("(positive values are late arrivals)"),
+                               ""
+                              )
+                         )
+                    )
+         )
+
+DeltTime_BoxPlot
+
+```
+
+
+Investigation of Delta_Time (how early or late the bus is).
+
+Exploring "extreme" Delta_Times.  First let's get some "rank" stats.
+```{r}
+
+View(DeltTime_Pctiles)
+DeltTime_Pctiles
+
+
+DeltTimeAbs_Ntile <- as.data.frame(abs(AllDays_NewOrder$Delta_Time)) %>% 
+  mutate(Pctile = ntile(abs(AllDays_NewOrder$Delta_Time), 100),
+         MinR = min_rank(abs(AllDays_NewOrder$Delta_Time)),
+         PctR = percent_rank(abs(AllDays_NewOrder$Delta_Time)),
+         PctR_Round = round(PctR, 2)
+        ) 
+
+colnames(DeltTimeAbs_Ntile)[1] <- "Delta_Time_Abs"
+str(DeltTimeAbs_Ntile)
+
+DeltTimeAbs_Ntile_Rows <- nrow(DeltTimeAbs_Ntile)
+
+View(tail(DeltTimeAbs_Ntile, 500))
+
+
+DeltTimeAbs_Pctiles <- group_by(DeltTimeAbs_Ntile,
+                                PctR_Round
+                               ) %>% 
+  summarise(
+    MinDeltTimeAtPctile = min(Delta_Time_Abs),
+    CntsAtPctile = n(),
+    PctsAtPctile = CntsAtPctile / DeltTime_Ntile_Rows
+  ) %>% 
+  mutate(CumSumPAtP = cumsum(PctsAtPctile)
+        )
+
+View(DeltTimeAbs_Pctiles)
+DeltTimeAbs_Pctiles
+
+```
+
+
+Investigation of Delta_Time (how early or late the bus is).
+
+Exploring "extreme" Delta_Times.  Then let's calculate the percentage of buses that are 10 minutes (or more) late/early.
+```{r}
+
+HrGroup_DeltaTime_All <- group_by(AllDays_NewOrder,
+                                  Event_Time_HrGroup
+                                 ) %>% 
+  summarise(EventAll_Cnt = n()
+           )
+
+str(HrGroup_DeltaTime_All)
+View(HrGroup_DeltaTime_All)
+
+
+HrGroup_DeltaTime_Above10Min <- filter(AllDays_NewOrder,
+                                       abs(Delta_Time) >= 600
+                                      ) %>% 
+  group_by(Event_Time_HrGroup) %>% 
+  summarise(EventAbove10_Cnt = n()
+           )
+
+str(HrGroup_DeltaTime_Above10Min)
+View(HrGroup_DeltaTime_Above10Min)
+
+
+HrGroup_DeltaTimeCompare <- inner_join(HrGroup_DeltaTime_Above10Min,
+                                       HrGroup_DeltaTime_All,
+                                       by = c("Event_Time_HrGroup" = "Event_Time_HrGroup")
+                                      ) %>% 
+  mutate(PctEventsAbove10 = EventAbove10_Cnt / EventAll_Cnt)
+
+View(HrGroup_DeltaTimeCompare)
+
+```
+
+
+Investigation of Delta_Time (how early or late the bus is).
+
+Quickly plot these "extreme" Delta_Times. 
+```{r}
+
+DeltTime_Above10_Cols <- ggplot(HrGroup_DeltaTimeCompare,
+                                aes(factor(Event_Time_HrGroup),
+                                    PctEventsAbove10
+                                   )
+                               ) +
+  geom_col(fill = "lightblue", colour = "grey60", size = 0.2) +
+  geom_text(aes(label = format(round(PctEventsAbove10, digits = 2),
+                               nsmall = 2
+                              )
+               ),
+            size = 3,
+            nudge_y = (HrGroup_DeltaTimeCompare$PctEventsAbove10 * -0.1)
+           ) +
+  # coord_cartesian(xlim = c(-5, 5)) +
+  xlab("Hour Group") + 
+  ylab("Percent of All Bus Arrivals") +
+  theme(legend.position="none", axis.text.x = element_text(angle=45)) +
+  ggtitle(expression(atop("When is a Bus 10+ Minutes Late/Early"
+                          # ,atop(italic("positive values are late arrivals"),
+                          #      ""
+                          #     )
+                         )
+                    )
+         )
+
+DeltTime_Above10_Cols
+
+```
+
+
+Quick investigation on the relationship between Dwell_Time2 (the time a bus is at a stop) and Delta_Time (how early/late the bus is).
+
+Correlation.
+```{r}
+
+DwellTDeltaT_Corr <- as.matrix(cor(x = AllDays_NewOrder$Dwell_Time2,
+                                   y = AllDays_NewOrder$Delta_Time,
+                                   use = "pairwise"
+                                  )
+                               )
+
+DwellTDeltaT_Corr
+
+```
+
+
+Quick investigation on the relationship between Dwell_Time2 (the time a bus is at a stop) and Delta_Time (how early/late the bus is).
+
+Next, let's get a sample of data for plotting. Let's do this for the full dataset (AllDays_NewOrder).
+```{r}
+
+AllDays_NewOrder_10PctSamp <- sample_frac(AllDays_NewOrder, 0.1) %>% 
+  select(Delta_Time,
+         Dwell_Time2
+        ) %>% 
+  mutate(DataSet = "AllData")
+
+str(AllDays_NewOrder_10PctSamp)
+
+```
+
+
+Quick investigation on the relationship between Dwell_Time2 (the time a bus is at a stop) and Delta_Time (how early/late the bus is).
+
+Let's also get a sample of data for plotting, but with a datset that removes outliers.
+```{r}
+
+View(DeltTime_Pctiles)
+View(DwellTime2_Pctiles)
+
+AllDays_NewOrder_NoExtremes_10PctSamp <- filter(AllDays_NewOrder,
+                                                between(Delta_Time, -402, 1705) & # removes about 2% of Delta_Time values
+                                                  between(Dwell_Time2, 1, 63)  # removes about 2% of Dwell_Time2 values
+                                               ) %>% 
+  sample_frac(0.1) %>% 
+  select(Delta_Time,
+         Dwell_Time2
+        ) %>% 
+  mutate(DataSet = "OutliersRemoved")
+
+str(AllDays_NewOrder_NoExtremes_10PctSamp)
+
+```
+
+
+Quick investigation on the relationship between Dwell_Time2 (the time a bus is at a stop) and Delta_Time (how early/late the bus is).
+
+Plotting the data from the dataset that does not remove outliers.
+```{r}
+
+DwellTDeltaT_Scatter <- ggplot(AllDays_NewOrder_10PctSamp,
+                               aes(Dwell_Time2, Delta_Time)
+                              ) +
+  geom_point(shape = 1, alpha = 0.5) +
+  scale_shape(solid = FALSE) +
+  geom_smooth(method = "lm", colour = "red") +
+  # xlab("Time at Stop (sec)") + 
+  # ylab("Lateness (sec)") +
+  annotate(label = lm_eqn(df = AllDays_NewOrder_10PctSamp,
+                          y = AllDays_NewOrder_10PctSamp$Delta_Time,
+                          x = AllDays_NewOrder_10PctSamp$Dwell_Time2
+                         ),
+           x = 2200,
+           y = 600,
+           geom = "text",
+           size = 3,
+           colour = "red",
+           parse = TRUE
+          ) +
+  labs(title = "Lateness vs Time at Stop",
+       subtitle = "(no outliers removed)",
+       x = "Time at Stop (sec)",
+       y = "Lateness (sec)"
+      )
+  # ggtitle(expression(atop("Lateness vs Time at Stop"
+  #                         ,atop(italic("(no outliers removed)"),
+  #                               ""
+  #                              )
+  #                        )
+  #                   )
+  #        )
+# +
+#   geom_jitter()
+
+DwellTDeltaT_Scatter
+
+```
+
+
+Quick investigation on the relationship between Dwell_Time2 (the time a bus is at a stop) and Delta_Time (how early/late the bus is).
+
+Plotting the data from the dataset that does remove outliers.
+```{r}
+
+DwellTDeltaT_Scatter_NoExtremes <- ggplot(AllDays_NewOrder_NoExtremes_10PctSamp,
+                                          aes(Dwell_Time2, Delta_Time)
+                                         ) +
+  geom_point(shape = 1, alpha = 0.5) +
+  scale_shape(solid = FALSE) +
+  geom_smooth(method = "lm", colour = "blue") +
+  # xlab("Time at Stop (sec)") + 
+  # ylab("Lateness (sec)") +
+  annotate(label = lm_eqn(df = AllDays_NewOrder_NoExtremes_10PctSamp,
+                          y = AllDays_NewOrder_NoExtremes_10PctSamp$Delta_Time,
+                          x = AllDays_NewOrder_NoExtremes_10PctSamp$Dwell_Time2
+                         ),
+           x = 50,
+           y = -475,
+           geom = "text",
+           size = 3,
+           colour = "blue",
+           parse = TRUE
+          ) +
+  labs(title = "Lateness vs Time at Stop",
+       subtitle = "(2% of outliers removed)",
+       x = "Time at Stop (sec)",
+       y = "Lateness (sec)"
+      )
+  # ggtitle(expression(atop("Lateness vs Time at Stop"
+  #                         ,atop(italic("(2% of outliers removed)"),
+  #                               ""
+  #                              )
+  #                        )
+  #                   )
+  #        )
+# +
+#   geom_jitter()
+
+DwellTDeltaT_Scatter_NoExtremes
+
+```
+
+
+Quick investigation on the relationship between Dwell_Time2 (the time a bus is at a stop) and Delta_Time (how early/late the bus is).
+
+Plotting the data from both datasets together.
+```{r}
+
+CombinedData <- rbind(AllDays_NewOrder_10PctSamp,
+                      AllDays_NewOrder_NoExtremes_10PctSamp
+                     )
+
+CombinedData$DataSet <- factor(CombinedData$DataSet)
+
+str(CombinedData)
+
+
+DwellTDeltaT_Scatter_Combined <- ggplot(CombinedData,
+                                        aes(x = Dwell_Time2,
+                                            y = Delta_Time,
+                                            colour = DataSet
+                                           )
+                                       ) +
+  geom_point(shape = 1, alpha = 0.5) +
+  scale_shape(solid = FALSE) +
+  coord_cartesian(xlim = c(0, 500), ylim = c(-1000, 2000)
+                 ) +
+  geom_smooth(data = filter(CombinedData,
+                            DataSet == "AllData"
+                           ),
+              method = "lm",
+              colour = "red"
+             ) +
+  geom_smooth(data = filter(CombinedData,
+                            DataSet == "OutliersRemoved"
+                           ),
+              method = "lm",
+              colour = "blue"
+             ) +
+  # facet_wrap( ~ DataSet, ncol = 2) +
+  annotate(label = lm_eqn(df = AllDays_NewOrder_10PctSamp,
+                          y = AllDays_NewOrder_10PctSamp$Delta_Time,
+                          x = AllDays_NewOrder_10PctSamp$Dwell_Time2
+                         ),
+           x = 300,
+           y = -600,
+           geom = "text",
+           size = 3,
+           colour = "red",
+           parse = TRUE
+          ) +
+  annotate(label = lm_eqn(df = AllDays_NewOrder_NoExtremes_10PctSamp,
+                          y = AllDays_NewOrder_NoExtremes_10PctSamp$Delta_Time,
+                          x = AllDays_NewOrder_NoExtremes_10PctSamp$Dwell_Time2
+                         ),
+           x = 300,
+           y = -800,
+           geom = "text",
+           size = 3,
+           colour = "blue",
+           parse = TRUE
+          ) +
+  theme(legend.position = "bottom") +
+  labs(title = "Lateness vs Time at Stop",
+       x = "Time at Stop (sec)",
+       y = "Lateness (sec)"
+      )
+  # ggtitle(expression(atop("Lateness vs Time at Stop"
+                          # ,atop(italic("2% of outliers removed"),
+                          #       ""
+                          #      )
+         #                 )
+         #            )
+         # )
+# +
+#   geom_jitter()
+
+DwellTDeltaT_Scatter_Combined
+
+```
+
 
 
 
