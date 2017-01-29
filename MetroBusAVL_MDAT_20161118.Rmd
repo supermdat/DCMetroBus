@@ -227,131 +227,7 @@ I attempted this computation using both data.frames (dplyr) and data.tables (dat
 ```{r}
 
 # Create a RunsGroup variable for each run
-StopID_Runs_df$RunsGroup <- paste0("g", seq(1:nrow(StopID_Runs_df)
-                                           )
-                                  )
 
-str(StopID_Runs_df)
-head(StopID_Runs_df, 25)
-tail(StopID_Runs_df, 25)
-
-StopID_Runs_df <- StopID_Runs_df %>% 
-  mutate(RowNum = row_number()
-        )
-
-str(StopID_Runs_df)
-head(StopID_Runs_df, 25)
-tail(StopID_Runs_df, 25)
-
-
-# Converting to data.tables for, hopefully, improved performance (speed) in computation
-StopID_Runs_dt <- data.table(StopID_Runs_df)
-setkey(StopID_Runs_dt, RowNum)
-str(StopID_Runs_dt)
-
-AllDays_Sorted_dt <- data.table(AllDays_Sorted)
-setkey(AllDays_Sorted_dt, RowNum_OG)
-str(AllDays_Sorted_dt)
-# rm(AllDays_Sorted_dt)
-
-
-# Actual loop to perform the computations and link to original data (AllDays_Sorted_dt)
-GroupData <- list()
-for(i in 1:nrow(StopID_Runs_dt)
-   ) {
-  assign(paste0("group_", i),
-           StopID_Runs_dt[RowNum == i, RunsGroup]
-          )
-  
-    #####  The code below is the same code as above, but done with dplyr  #####
-  
-    # assign(paste0("group_", i),
-  #        filter(StopID_Runs_df,
-  #               RowNum == i
-  #              ) %>% 
-  #          select(RunsGroup)
-  #       )
-  
-  assign(paste0("group_", i, "_start"),
-         StopID_Runs_dt[RowNum == i, starts]
-        )
-  
-  assign(paste0("group_", i, "_end"),
-         StopID_Runs_dt[RowNum == i, ends]
-        )
-  
-  assign(paste0("group_", i, "_rows"),
-         AllDays_Sorted_dt[RowNum_OG >= as.numeric(get(paste0("group_", i, "_start")
-                                                      )
-                                                  ) &
-                           RowNum_OG <= as.numeric(get(paste0("group_", i, "_end")
-                                                      )
-                                                  ),
-                           RunsGroup := as.character(get(paste0("group_", i)
-                                                        )
-                                                    )
-                          ]
-
-    #####  The code below is the same as the code above, but done with dplyr  #####
-    
-         # filter(AllDays_Sorted,
-         #        between(RowNum_OG,
-         #                as.numeric(get(paste0("group_", i, "_start")
-         #                              )
-         #                          ),
-         #                as.numeric(get(paste0("group_", i, "_end")
-         #                              )
-         #                          )
-         #               )
-         #       ) %>% 
-         #   mutate(RunsGroup = as.character(get(paste0("group_", i)
-         #                                     )
-         #                                 )
-         #        )
-        )
-  
-  GroupData[[i]] <- get(paste0("group_", i, "_rows"))
-  
-  message("Processing Group ", i, " of 2,809,062")
-}
-
-
-GroupData_df <- rbind.fill(GroupData)
-str(GroupData_df)
-head(GroupData_df)
-tail(GroupData_df)
-# rm(GroupData_df)
-
-
-group_1
-group_1_start
-group_1_end
-group_1_rows
-group_2_rows
-group_3_rows
-group_50_rows
-str(group_50_rows)
-group_2809062_rows
-GroupData[[1]]
-GroupData[[50]]
-
-
-#####  Testing Area (Below)  #####
-#####  Testing Area (Below)  #####
-#####  Testing Area (Below)  #####
-
-# head(StopID_Runs$starts, 20)
-# head(AllDays_NewOrder$Stop_ID, 20)
-# 
-# 
-# dat <- as.data.frame(c(1,1,7,7,7,9,6,8,2,2,2,1,1,1,1,1))
-# colnames(dat)[1] <- "dat"
-# r <- rle(dat$dat)
-# dat$run <- rep(r$lengths, r$lengths)
-# dat$runLag <- lag(dat$run)
-# dat$cond <- rep(r$values, r$lengths)
-# dat
-# View(dat)
 
 ```
 
@@ -563,12 +439,12 @@ Stats for StartStop_ID.
 Quantiles_SS_dt <- group_by(AllDays_BusDay,
                             StartStop_ID
                            ) %>% 
-  mutate(TD_Mi_q5 = quantile(x = TravelDistance_Mi, probs = 0.05, na.rm = TRUE),
-         TD_Mi_q95 = quantile(x = TravelDistance_Mi, probs = 0.95, na.rm = TRUE),
-         TT_Sec_q5 = quantile(x = TravelTime_Sec, probs = 0.05, na.rm = TRUE),
-         TT_Sec_q95 = quantile(x = TravelTime_Sec, probs = 0.95, na.rm = TRUE),
-         TT_Hr_q5 = quantile(x = TravelTime_Hr, probs = 0.05, na.rm = TRUE),
-         TT_Hr_q95 = quantile(x = TravelTime_Hr, probs = 0.95, na.rm = TRUE)
+  mutate(TD_Mi_SS_q5 = quantile(x = TravelDistance_Mi, probs = 0.05, na.rm = TRUE),
+         TD_Mi_SS_q95 = quantile(x = TravelDistance_Mi, probs = 0.95, na.rm = TRUE),
+         TT_Sec_SS_q5 = quantile(x = TravelTime_Sec, probs = 0.05, na.rm = TRUE),
+         TT_Sec_SS_q95 = quantile(x = TravelTime_Sec, probs = 0.95, na.rm = TRUE),
+         TT_Hr_SS_q5 = quantile(x = TravelTime_Hr, probs = 0.05, na.rm = TRUE),
+         TT_Hr_SS_q95 = quantile(x = TravelTime_Hr, probs = 0.95, na.rm = TRUE)
         ) %>% 
   data.table()
 
@@ -576,49 +452,52 @@ Quantiles_SS_dt <- group_by(AllDays_BusDay,
 Stats_StSt <- group_by(Quantiles_SS_dt,
                        StartStop_ID
                       ) %>% 
-  summarise(TD_Mi_SS_Mean = mean(TravelDistance_Mi, na.rm = TRUE),
-            TD_Mi_SS_Mean_F = mean(TravelDistance_Mi[TD_Mi_q5 <= TravelDistance_Mi & TravelDistance_Mi <= TD_Mi_q95],
-                                   na.rm = TRUE
-                                  ),
-            TD_Mi_SS_Med = median(TravelDistance_Mi, na.rm = TRUE),
-            TD_Mi_SS_Med_F = median(TravelDistance_Mi[TD_Mi_q5 <= TravelDistance_Mi & TravelDistance_Mi <= TD_Mi_q95],
-                                    na.rm = TRUE
-                                   ),
-            TD_Mi_SS_Cnt = sum(!is.na(TravelDistance_Mi)
-                              ),
-            TD_Mi_SS_Cnt_F = sum(!is.na(TravelDistance_Mi[TD_Mi_q5 <= TravelDistance_Mi & TravelDistance_Mi <= TD_Mi_q95]
-                                       )
+  mutate(TD_Mi_SS_Mean = mean(TravelDistance_Mi, na.rm = TRUE),
+         TD_Mi_SS_Mean_F = mean(TravelDistance_Mi[TD_Mi_SS_q5 <= TravelDistance_Mi & TravelDistance_Mi <= TD_Mi_SS_q95],
+                                na.rm = TRUE
+                               ),
+         TD_Mi_SS_Med = median(TravelDistance_Mi, na.rm = TRUE),
+         TD_Mi_SS_Med_F = median(TravelDistance_Mi[TD_Mi_SS_q5 <= TravelDistance_Mi & TravelDistance_Mi <= TD_Mi_SS_q95],
+                                 na.rm = TRUE
                                 ),
+         TD_Mi_SS_Cnt = sum(!is.na(TravelDistance_Mi)
+                           ),
+         TD_Mi_SS_Cnt_F = sum(!is.na(TravelDistance_Mi[TD_Mi_SS_q5 <= TravelDistance_Mi & TravelDistance_Mi <= TD_Mi_SS_q95]
+                                    )
+                             ),
             
-            TT_Sec_SS_Mean = mean(TravelTime_Sec, na.rm = TRUE),
-            TT_Sec_SS_Mean_F = mean(TravelTime_Sec[TT_Sec_q5 <= TravelTime_Sec & TravelTime_Sec <= TT_Sec_q95],
-                                    na.rm = TRUE
-                                   ),
-            TT_Sec_SS_Med = median(TravelTime_Sec, na.rm = TRUE),
-            TT_Sec_SS_Med_F = median(TravelTime_Sec[TT_Sec_q5 <= TravelTime_Sec & TravelTime_Sec <= TT_Sec_q95],
-                                     na.rm = TRUE
-                                    ),
-            TT_Sec_SS_Cnt = sum(!is.na(TravelTime_Sec)),
-            TT_Sec_SS_Cnt_F = sum(!is.na(TravelTime_Sec[TT_Sec_q5 <= TravelTime_Sec & TravelTime_Sec <= TT_Sec_q95]
-                                        )
+         TT_Sec_SS_Mean = mean(TravelTime_Sec, na.rm = TRUE),
+         TT_Sec_SS_Mean_F = mean(TravelTime_Sec[TT_Sec_SS_q5 <= TravelTime_Sec & TravelTime_Sec <= TT_Sec_SS_q95],
+                                 na.rm = TRUE
+                                ),
+         TT_Sec_SS_Med = median(TravelTime_Sec, na.rm = TRUE),
+         TT_Sec_SS_Med_F = median(TravelTime_Sec[TT_Sec_SS_q5 <= TravelTime_Sec & TravelTime_Sec <= TT_Sec_SS_q95],
+                                  na.rm = TRUE
                                  ),
+         TT_Sec_SS_Cnt = sum(!is.na(TravelTime_Sec)),
+         TT_Sec_SS_Cnt_F = sum(!is.na(TravelTime_Sec[TT_Sec_SS_q5 <= TravelTime_Sec & TravelTime_Sec <= TT_Sec_SS_q95]
+                                     )
+                              ),
 
-            TT_Hr_SS_Mean = mean(TravelTime_Hr, na.rm = TRUE),
-            TT_Hr_SS_Mean_F = mean(TravelTime_Hr[TT_Hr_q5 <= TravelTime_Hr & TravelTime_Hr <= TT_Hr_q95],
-                                    na.rm = TRUE
-                                   ),
-            TT_Hr_SS_Med = median(TravelTime_Hr, na.rm = TRUE),
-            TT_Hr_SS_Med_F = median(TravelTime_Hr[TT_Hr_q5 <= TravelTime_Hr & TravelTime_Hr <= TT_Hr_q95],
-                                    na.rm = TRUE
-                                   ),
-            TT_Hr_SS_Cnt = sum(!is.na(TravelTime_Hr)),
-            TT_Hr_SS_Cnt_F = sum(!is.na(TravelTime_Hr[TT_Hr_q5 <= TravelTime_Hr & TravelTime_Hr <= TT_Hr_q95]
-                                       )
-                                )
-           )
+         TT_Hr_SS_Mean = mean(TravelTime_Hr, na.rm = TRUE),
+         TT_Hr_SS_Mean_F = mean(TravelTime_Hr[TT_Hr_SS_q5 <= TravelTime_Hr & TravelTime_Hr <= TT_Hr_SS_q95],
+                                na.rm = TRUE
+                               ),
+         TT_Hr_SS_Med = median(TravelTime_Hr, na.rm = TRUE),
+         TT_Hr_SS_Med_F = median(TravelTime_Hr[TT_Hr_SS_q5 <= TravelTime_Hr & TravelTime_Hr <= TT_Hr_SS_q95],
+                                 na.rm = TRUE
+                                ),
+         TT_Hr_SS_Cnt = sum(!is.na(TravelTime_Hr)),
+         TT_Hr_SS_Cnt_F = sum(!is.na(TravelTime_Hr[TT_Hr_SS_q5 <= TravelTime_Hr & TravelTime_Hr <= TT_Hr_SS_q95]
+                                    )
+                             )
+        ) %>% 
+  data.frame()
 
 
-rm(Quantiles_SS_dt)
+# rm(Quantiles_SS_dt)
+# rm(AllDays_BusDay)
+str(Stats_StSt)
 View(head(Stats_StSt, 50))
 
 ```
@@ -627,16 +506,16 @@ View(head(Stats_StSt, 50))
 Stats for StartStop_ID with Event_Time_HrGroup.
 ```{r}
 
-Quantiles_SSHG_dt <- group_by(AllDays_BusDay,
+Quantiles_SSHG_dt <- group_by(Stats_StSt,
                               StartStop_ID,
                               Event_Time_HrGroup
                              ) %>% 
-  mutate(TD_Mi_q5 = quantile(x = TravelDistance_Mi, probs = 0.05, na.rm = TRUE),
-         TD_Mi_q95 = quantile(x = TravelDistance_Mi, probs = 0.95, na.rm = TRUE),
-         TT_Sec_q5 = quantile(x = TravelTime_Sec, probs = 0.05, na.rm = TRUE),
-         TT_Sec_q95 = quantile(x = TravelTime_Sec, probs = 0.95, na.rm = TRUE),
-         TT_Hr_q5 = quantile(x = TravelTime_Hr, probs = 0.05, na.rm = TRUE),
-         TT_Hr_q95 = quantile(x = TravelTime_Hr, probs = 0.95, na.rm = TRUE)
+  mutate(TD_Mi_SSHG_q5 = quantile(x = TravelDistance_Mi, probs = 0.05, na.rm = TRUE),
+         TD_Mi_SSHG_q95 = quantile(x = TravelDistance_Mi, probs = 0.95, na.rm = TRUE),
+         TT_Sec_SSHG_q5 = quantile(x = TravelTime_Sec, probs = 0.05, na.rm = TRUE),
+         TT_Sec_SSHG_q95 = quantile(x = TravelTime_Sec, probs = 0.95, na.rm = TRUE),
+         TT_Hr_SSHG_q5 = quantile(x = TravelTime_Hr, probs = 0.05, na.rm = TRUE),
+         TT_Hr_SSHG_q95 = quantile(x = TravelTime_Hr, probs = 0.95, na.rm = TRUE)
         ) %>% 
   data.table()
 
@@ -645,77 +524,52 @@ Stats_StSt_HrGrp <- group_by(Quantiles_SSHG_dt,
                              StartStop_ID,
                              Event_Time_HrGroup
                             ) %>% 
-  summarise(TD_Mi_SSHG_Mean = mean(TravelDistance_Mi, na.rm = TRUE),
-            TD_Mi_SSHG_Mean_F = mean(TravelDistance_Mi[TD_Mi_q5 <= TravelDistance_Mi & TravelDistance_Mi <= TD_Mi_q95],
-                                     na.rm = TRUE
-                                    ),
-            TD_Mi_SSHG_Med = median(TravelDistance_Mi, na.rm = TRUE),
-            TD_Mi_SSHG_Med_F = median(TravelDistance_Mi[TD_Mi_q5 <= TravelDistance_Mi & TravelDistance_Mi <= TD_Mi_q95],
-                                      na.rm = TRUE
-                                     ),
-            TD_Mi_SSHG_Cnt = sum(!is.na(TravelDistance_Mi)
-                                ),
-            TD_Mi_SSHG_Cnt_F = sum(!is.na(TravelDistance_Mi[TD_Mi_q5 <= TravelDistance_Mi & TravelDistance_Mi <= TD_Mi_q95]
-                                         )
+  mutate(TD_Mi_SSHG_Mean = mean(TravelDistance_Mi, na.rm = TRUE),
+         TD_Mi_SSHG_Mean_F = mean(TravelDistance_Mi[TD_Mi_SSHG_q5 <= TravelDistance_Mi & TravelDistance_Mi <= TD_Mi_SSHG_q95],
+                                  na.rm = TRUE
+                                 ),
+         TD_Mi_SSHG_Med = median(TravelDistance_Mi, na.rm = TRUE),
+         TD_Mi_SSHG_Med_F = median(TravelDistance_Mi[TD_Mi_SSHG_q5 <= TravelDistance_Mi & TravelDistance_Mi <= TD_Mi_SSHG_q95],
+                                   na.rm = TRUE
                                   ),
+         TD_Mi_SSHG_Cnt = sum(!is.na(TravelDistance_Mi)
+                             ),
+         TD_Mi_SSHG_Cnt_F = sum(!is.na(TravelDistance_Mi[TD_Mi_SSHG_q5 <= TravelDistance_Mi & TravelDistance_Mi <= TD_Mi_SSHG_q95]
+                                      )
+                               ),
             
-            TT_Sec_SSHG_Mean = mean(TravelTime_Sec, na.rm = TRUE),
-            TT_Sec_SSHG_Mean_F = mean(TravelTime_Sec[TT_Sec_q5 <= TravelTime_Sec & TravelTime_Sec <= TT_Sec_q95],
-                                      na.rm = TRUE
-                                     ),
-            TT_Sec_SSHG_Med = median(TravelTime_Sec, na.rm = TRUE),
-            TT_Sec_SSHG_Med_F = median(TravelTime_Sec[TT_Sec_q5 <= TravelTime_Sec & TravelTime_Sec <= TT_Sec_q95],
-                                       na.rm = TRUE
-                                      ),
-            TT_Sec_SSHG_Cnt = sum(!is.na(TravelTime_Sec)),
-            TT_Sec_SSHG_Cnt_F = sum(!is.na(TravelTime_Sec[TT_Sec_q5 <= TravelTime_Sec & TravelTime_Sec <= TT_Sec_q95]
-                                          )
+         TT_Sec_SSHG_Mean = mean(TravelTime_Sec, na.rm = TRUE),
+         TT_Sec_SSHG_Mean_F = mean(TravelTime_Sec[TT_Sec_SSHG_q5 <= TravelTime_Sec & TravelTime_Sec <= TT_Sec_SSHG_q95],
+                                   na.rm = TRUE
+                                  ),
+         TT_Sec_SSHG_Med = median(TravelTime_Sec, na.rm = TRUE),
+         TT_Sec_SSHG_Med_F = median(TravelTime_Sec[TT_Sec_SSHG_q5 <= TravelTime_Sec & TravelTime_Sec <= TT_Sec_SSHG_q95],
+                                    na.rm = TRUE
                                    ),
+         TT_Sec_SSHG_Cnt = sum(!is.na(TravelTime_Sec)),
+         TT_Sec_SSHG_Cnt_F = sum(!is.na(TravelTime_Sec[TT_Sec_SSHG_q5 <= TravelTime_Sec & TravelTime_Sec <= TT_Sec_SSHG_q95]
+                                       )
+                                ),
 
-            TT_Hr_SSHG_Mean = mean(TravelTime_Hr, na.rm = TRUE),
-            TT_Hr_SSHG_Mean_F = mean(TravelTime_Hr[TT_Hr_q5 <= TravelTime_Hr & TravelTime_Hr <= TT_Hr_q95],
-                                     na.rm = TRUE
-                                    ),
-            TT_Hr_SSHG_Med = median(TravelTime_Hr, na.rm = TRUE),
-            TT_Hr_SSHG_Med_F = median(TravelTime_Hr[TT_Hr_q5 <= TravelTime_Hr & TravelTime_Hr <= TT_Hr_q95],
-                                      na.rm = TRUE
-                                     ),
-            TT_Hr_SSHG_Cnt = sum(!is.na(TravelTime_Hr)),
-            TT_Hr_SSHG_Cnt_F = sum(!is.na(TravelTime_Hr[TT_Hr_q5 <= TravelTime_Hr & TravelTime_Hr <= TT_Hr_q95]
-                                         )
-                                  )
-           )
+         TT_Hr_SSHG_Mean = mean(TravelTime_Hr, na.rm = TRUE),
+         TT_Hr_SSHG_Mean_F = mean(TravelTime_Hr[TT_Hr_SSHG_q5 <= TravelTime_Hr & TravelTime_Hr <= TT_Hr_SSHG_q95],
+                                  na.rm = TRUE
+                                 ),
+         TT_Hr_SSHG_Med = median(TravelTime_Hr, na.rm = TRUE),
+         TT_Hr_SSHG_Med_F = median(TravelTime_Hr[TT_Hr_SSHG_q5 <= TravelTime_Hr & TravelTime_Hr <= TT_Hr_SSHG_q95],
+                                   na.rm = TRUE
+                                  ),
+         TT_Hr_SSHG_Cnt = sum(!is.na(TravelTime_Hr)),
+         TT_Hr_SSHG_Cnt_F = sum(!is.na(TravelTime_Hr[TT_Hr_SSHG_q5 <= TravelTime_Hr & TravelTime_Hr <= TT_Hr_SSHG_q95]
+                                      )
+                               )
+        ) %>% 
+  data.frame()
 
-rm(Quantiles_SSHG_dt)
+# rm(Quantiles_SSHG_dt)
+# rm(Stats_StSt)
+str(Stats_StSt_HrGrp)
 View(head(Stats_StSt_HrGrp, 50))
-
-```
-
-
-Join Stats_StSt and Stats_StSt_HrGrp with AllDays_BusDay
-```{r}
-
-AllDays_wSumStats <- left_join(AllDays_BusDay,
-                               Stats_StSt,
-                               by = c("StartStop_ID" = "StartStop_ID")
-                              ) %>% 
-  left_join(Stats_StSt_HrGrp,
-            Stats_StSt,
-            by = c("StartStop_ID" = "StartStop_ID",
-                   "Event_Time_HrGroup" = "Event_Time_HrGroup"
-                  )
-           )
-
-# dim(AllDays_BusDay)
-# dim(AllDays_wSumStats)
-
-rm(AllDays_BusDay)
-rm(Stats_StSt)
-rm(Stats_StSt_HrGrp)
-
-str(AllDays_wSumStats)
-
-summary(AllDays_wSumStats)
 
 ```
 
@@ -725,7 +579,7 @@ Feature engineering.
 Creating a BusEventRoute row number, and a RouteAlt_Lag1 indicator for future identification purposes. 
 ```{r}
 
-AllDays_BusDayRoute <- group_by(AllDays_wSumStats,
+AllDays_BusDayRoute <- group_by(Stats_StSt_HrGrp,
                                 Bus_ID,
                                 Event_Time_Date,
                                 Route
@@ -754,9 +608,9 @@ AllDays_BusDayRoute <- group_by(AllDays_wSumStats,
          #                       NA
          #                      )
         ) %>% 
-  as.data.frame()
+  data.frame()
 
-rm(AllDays_wSumStats)
+rm(Stats_StSt_HrGrp)
 str(AllDays_BusDayRoute)
 
 ```
@@ -791,6 +645,7 @@ Re-ordering the variables to ease with comprehension.
 AllDays_NewOrder <-  select(AllDays_DirChange,
                             RowNum_OG,
                             group,
+                            StartStop_ID,
                             BusDay_EventNum,
                             Bus_ID,
                             Route,
@@ -805,7 +660,6 @@ AllDays_NewOrder <-  select(AllDays_DirChange,
                             StopID_Clean,
                             StopID_Indicator,
                             Stop_Desc,
-                            StartStop_ID,
                             Event_Type,
                             Event_Description,
                             Event_Time_Yr,
@@ -829,6 +683,10 @@ AllDays_NewOrder <-  select(AllDays_DirChange,
                             TravelDistance_Ft,
                             TravelDistance_Mi,
                             TravelDistance_Mi_Hvrs,
+                            TD_Mi_SS_q5,
+                            TD_Mi_SS_q95,
+                            TD_Mi_SSHG_q5,
+                            TD_Mi_SSHG_q95,
                             TD_Mi_SS_Mean,
                             TD_Mi_SS_Mean_F,
                             TD_Mi_SSHG_Mean,
@@ -842,6 +700,10 @@ AllDays_NewOrder <-  select(AllDays_DirChange,
                             TD_Mi_SSHG_Cnt,
                             TD_Mi_SSHG_Cnt_F,
                             TravelTime_Sec,
+                            TT_Sec_SS_q5,
+                            TT_Sec_SS_q95,
+                            TT_Sec_SSHG_q5,
+                            TT_Sec_SSHG_q95,
                             TT_Sec_SS_Mean,
                             TT_Sec_SS_Mean_F,
                             TT_Sec_SSHG_Mean,
@@ -855,6 +717,10 @@ AllDays_NewOrder <-  select(AllDays_DirChange,
                             TT_Sec_SSHG_Cnt,
                             TT_Sec_SSHG_Cnt_F,
                             TravelTime_Hr,
+                            TT_Hr_SS_q5,
+                            TT_Hr_SS_q95,
+                            TT_Hr_SSHG_q5,
+                            TT_Hr_SSHG_q95,
                             TT_Hr_SS_Mean,
                             TT_Hr_SS_Mean_F,
                             TT_Hr_SSHG_Mean,
@@ -900,11 +766,11 @@ TravDistMi_Ntile <- as.data.frame(AllDays_NewOrder$TravelDistance_Mi) %>%
         ) 
 
 colnames(TravDistMi_Ntile)[1] <- "TravelDistance_Mi"
-str(TravDistMi_Ntile)
+# str(TravDistMi_Ntile)
 
 TravDistMi_Ntile_Rows <- nrow(TravDistMi_Ntile)
 
-View(tail(TravDistMi_Ntile, 500))
+# View(tail(TravDistMi_Ntile, 500))
 
 
 TravDistMi_Pctiles <- group_by(TravDistMi_Ntile,
@@ -1012,7 +878,7 @@ TestTable <- filter(AllDays_NewOrder,
   summarise(TravDistMi_NACnts = n()
            )
 
-TestTable
+# TestTable
 
 TestTable_Spread <- as.data.frame(spread(TestTable,
                                          TravelDistance_NA,
@@ -1024,7 +890,7 @@ TestTable_Spread <- as.data.frame(spread(TestTable,
         )
 
 row.names(TestTable_Spread) <- c("Change", "Same")
-str(TestTable_Spread)
+# str(TestTable_Spread)
 TestTable_Spread
 
 prop.table(as.table(as.matrix(TestTable_Spread)
@@ -1078,8 +944,7 @@ TravDistMi_HistDen <- ggplot(select(TravelDistance_Mi_NoNA,
   geom_histogram(binwidth = 0.05, fill = "lightblue", colour = "grey60", size = 0.2) +
   geom_line(stat = "density", colour = "red") +
   coord_cartesian(xlim = c(0, 1.5), ylim = c(0, 4.0)
-                 ) +  # 0.0001893939 is the value at the 11th percentile (& the 1st percentile with non-zero values)
-                      # 1.0812500000 is the 99th percentile
+                 ) +
   labs(title = "Variation in Distance Between Stops",
        x = "Travel Distance (miles)",
        y = "Density"
@@ -1154,7 +1019,7 @@ ExtremeTravDist <- filter(AllDays_NewOrder,
   summarise(TravDistMI_ExtCnts = n()
            )
 
-ExtremeTravDist
+# ExtremeTravDist
 
 
 ExtremeTravDist_Spread <- as.data.frame(spread(ExtremeTravDist,
@@ -1167,8 +1032,8 @@ ExtremeTravDist_Spread <- as.data.frame(spread(ExtremeTravDist,
         )
 
 row.names(ExtremeTravDist_Spread) <- c("Change", "Same")
-str(ExtremeTravDist_Spread)
-ExtremeTravDist_Spread
+# str(ExtremeTravDist_Spread)
+# ExtremeTravDist_Spread
 
 prop.table(as.table(as.matrix(ExtremeTravDist_Spread)
                    ),
@@ -1180,17 +1045,16 @@ prop.table(as.table(as.matrix(ExtremeTravDist_Spread)
            2
           )
 
-rm(ExtremeTravDist)
-rm(ExtremeTravDist_Spread)
-
 ```
 
 
 Investigatio of TravelDistance_Mi.
 
 Looking at specific buses and StartStop_ID.
-
 ```{r}
+
+rm(ExtremeTravDist)
+rm(ExtremeTravDist_Spread)
 
 View(arrange(group_by(AllDays_NewOrder,
                       Bus_ID
@@ -1235,26 +1099,27 @@ View(filter(AllDays_NewOrder,
 ```
 
 
-Investigation of TravelDistance_Mi & TravelDistance_Mi_Hvrs & TravelDistance_Mi_New.
+Investigation of TravelDistance_Mi & TravelDistance_Mi_New.
 
-TravelDistance_Mi_Hvrs is based on the Haversine (great circle) distance, and TravelDistance_Mi_New uses TravelDistance_Mi_Hvrs when TravelDistance_Mi == 0 or when TravelDistance_Mi is > 1.0812500000 (the 99th percentile of TravelDistance_Mi)
+If TravelDisntace_Mi is below the 5th percentile for that StartStop_ID, or if TravelDisntace_Mi is above the 95th percentile for that StartStop_ID, or if TravelDistance_Mi is NA (when the BusDay_EventNum !=1), consider this an outlier.  In this case, replace the value with the mean for that StartStop_ID and HourGroup (TD_Mi_SSHG_Mean_F).
 ```{r}
 
-AllDays_NewTravelDist <- mutate(AllDays_NewOrder,
-                                TravelDistance_Mi_New = ifelse(TravelDistance_Mi == 0,
-                                                               TravelDistance_Mi_Hvrs,
-                                                        ifelse(TravelDistance_Mi > 1.0812500000, # 1.0812500000 is the 99th percentile
-                                                               TravelDistance_Mi_Hvrs,
-                                                               TravelDistance_Mi
-                                                              )),
-                                SpeedAvg_Mph2 = ifelse(TravelTime_Hr > 0,
-                                                       TravelDistance_Mi_New / TravelTime_Hr,
-                                                       NA
-                                                      )
-                               )
+View(tail(AllDays_NewOrder, 500))
 
+AllDays_NewTravelDist <- 
+  mutate(AllDays_NewOrder,
+         TravelDistance_Mi_New = ifelse(TravelDistance_Mi < TD_Mi_SSHG_q5 |
+                                          TravelDistance_Mi > TD_Mi_SSHG_q95 |
+                                          (is.na(TravelDistance_Mi) &
+                                             BusDay_EventNum != 1
+                                          ),
+                                        TD_Mi_SSHG_Mean_F,
+                                        TravelDistance_Mi
+                                       )
+        )
 
 str(AllDays_NewTravelDist)
+# rm(AllDays_NewOrder)
 
 ```
 
