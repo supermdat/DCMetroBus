@@ -227,7 +227,131 @@ I attempted this computation using both data.frames (dplyr) and data.tables (dat
 ```{r}
 
 # Create a RunsGroup variable for each run
-
+# StopID_Runs_df$RunsGroup <- paste0("g", seq(1:nrow(StopID_Runs_df)
+#                                            )
+#                                   )
+# 
+# str(StopID_Runs_df)
+# head(StopID_Runs_df, 25)
+# tail(StopID_Runs_df, 25)
+# 
+# StopID_Runs_df <- StopID_Runs_df %>% 
+#   mutate(RowNum = row_number()
+#         )
+# 
+# str(StopID_Runs_df)
+# head(StopID_Runs_df, 25)
+# tail(StopID_Runs_df, 25)
+# 
+# 
+# # Converting to data.tables for, hopefully, improved performance (speed) in computation
+# StopID_Runs_dt <- data.table(StopID_Runs_df)
+# setkey(StopID_Runs_dt, RowNum)
+# str(StopID_Runs_dt)
+# 
+# AllDays_Sorted_dt <- data.table(AllDays_Sorted)
+# setkey(AllDays_Sorted_dt, RowNum_OG)
+# str(AllDays_Sorted_dt)
+# # rm(AllDays_Sorted_dt)
+# 
+# 
+# # Actual loop to perform the computations and link to original data (AllDays_Sorted_dt)
+# GroupData <- list()
+# for(i in 1:nrow(StopID_Runs_dt)
+#    ) {
+#   assign(paste0("group_", i),
+#            StopID_Runs_dt[RowNum == i, RunsGroup]
+#           )
+# 
+#     #####  The code below is the same code as above, but done with dplyr  #####
+# 
+#     # assign(paste0("group_", i),
+#   #        filter(StopID_Runs_df,
+#   #               RowNum == i
+#   #              ) %>% 
+#   #          select(RunsGroup)
+#   #       )
+# 
+#   assign(paste0("group_", i, "_start"),
+#          StopID_Runs_dt[RowNum == i, starts]
+#         )
+# 
+#   assign(paste0("group_", i, "_end"),
+#          StopID_Runs_dt[RowNum == i, ends]
+#         )
+# 
+#   assign(paste0("group_", i, "_rows"),
+#          AllDays_Sorted_dt[RowNum_OG >= as.numeric(get(paste0("group_", i, "_start")
+#                                                       )
+#                                                   ) &
+#                            RowNum_OG <= as.numeric(get(paste0("group_", i, "_end")
+#                                                       )
+#                                                   ),
+#                            RunsGroup := as.character(get(paste0("group_", i)
+#                                                         )
+#                                                     )
+#                           ]
+# 
+#     #####  The code below is the same as the code above, but done with dplyr  #####
+# 
+#          # filter(AllDays_Sorted,
+#          #        between(RowNum_OG,
+#          #                as.numeric(get(paste0("group_", i, "_start")
+#          #                              )
+#          #                          ),
+#          #                as.numeric(get(paste0("group_", i, "_end")
+#          #                              )
+#          #                          )
+#          #               )
+#          #       ) %>% 
+#          #   mutate(RunsGroup = as.character(get(paste0("group_", i)
+#          #                                     )
+#          #                                 )
+#          #        )
+#         )
+# 
+#   GroupData[[i]] <- get(paste0("group_", i, "_rows"))
+# 
+#   message("Processing Group ", i, " of 2,809,062")
+# }
+# 
+# 
+# GroupData_df <- rbind.fill(GroupData)
+# str(GroupData_df)
+# head(GroupData_df)
+# tail(GroupData_df)
+# # rm(GroupData_df)
+# 
+# 
+# group_1
+# group_1_start
+# group_1_end
+# group_1_rows
+# group_2_rows
+# group_3_rows
+# group_50_rows
+# str(group_50_rows)
+# group_2809062_rows
+# GroupData[[1]]
+# GroupData[[50]]
+# 
+# 
+# #####  Testing Area (Below)  #####
+# #####  Testing Area (Below)  #####
+# #####  Testing Area (Below)  #####
+# 
+# # head(StopID_Runs$starts, 20)
+# # head(AllDays_NewOrder$Stop_ID, 20)
+# # 
+# # 
+# # dat <- as.data.frame(c(1,1,7,7,7,9,6,8,2,2,2,1,1,1,1,1))
+# # colnames(dat)[1] <- "dat"
+# # r <- rle(dat$dat)
+# # dat$run <- rep(r$lengths, r$lengths)
+# # dat$runLag <- lag(dat$run)
+# # dat$cond <- rep(r$values, r$lengths)
+# # dat
+# # View(dat)
 
 ```
 
@@ -903,9 +1027,6 @@ prop.table(as.table(as.matrix(TestTable_Spread)
            2
           )
 
-rm(TestTable)
-rm(TestTable_Spread)
-
 ```
 
 
@@ -913,6 +1034,9 @@ Investigation of TravelDistance_Mi.
 
 Let's look at just the TravelDistance_Mi values that are NOT "NA".
 ```{r}
+
+rm(TestTable)
+rm(TestTable_Spread)
 
 TravelDistance_Mi_NoNA <- filter(AllDays_NewOrder,
                                  # TravelDistance_Mi != 0 &
@@ -951,7 +1075,6 @@ TravDistMi_HistDen <- ggplot(select(TravelDistance_Mi_NoNA,
       )
 
 TravDistMi_HistDen
-# rm(TravelDistance_Mi_NoNA)
 
 ```
 
@@ -959,6 +1082,8 @@ Investigation of TravelDistance_Mi.
 
 Looking at the extremely large TravelDistance_Mi values. Some (aprox 27%) of TravelDistance_Mi values > 1 mile are when the DirChange2 changes...but what about the other ~73%?
 ```{r}
+
+rm(TravelDistance_Mi_NoNA)
 
 # examples of weirdly large TravelDistance_Mi
 View(filter(AllDays_NewOrder,
@@ -980,24 +1105,24 @@ View(filter(AllDays_NewOrder,
     )
 
 # Before Removing Runs
-View(filter(AllDays_Sorted,
-            between(RowNum_OG, 494044, 494064) | # 494054
-              between(RowNum_OG, 494273, 494293) | # 494283
-              between(RowNum_OG, 494626, 494646) | # 494636
-              between(RowNum_OG, 1610156, 1610176) | # 1610166
-              between(RowNum_OG, 2073074, 2073094) # 2073084
-           )
-    )
+# View(filter(AllDays_Sorted,
+#             between(RowNum_OG, 494044, 494064) | # 494054
+#               between(RowNum_OG, 494273, 494293) | # 494283
+#               between(RowNum_OG, 494626, 494646) | # 494636
+#               between(RowNum_OG, 1610156, 1610176) | # 1610166
+#               between(RowNum_OG, 2073074, 2073094) # 2073084
+#            )
+#     )
 
 # After Removing Runs
-View(filter(AllDays_FirstStopID,
-            between(RowNum_OG, 494044, 494064) | # 494054
-              between(RowNum_OG, 494273, 494293) | # 494283
-              between(RowNum_OG, 494626, 494646) | # 494636
-              between(RowNum_OG, 1610156, 1610176) | # 1610166
-              between(RowNum_OG, 2073074, 2073094) # 2073084
-           )
-    )
+# View(filter(AllDays_FirstStopID,
+#             between(RowNum_OG, 494044, 494064) | # 494054
+#               between(RowNum_OG, 494273, 494293) | # 494283
+#               between(RowNum_OG, 494626, 494646) | # 494636
+#               between(RowNum_OG, 1610156, 1610176) | # 1610166
+#               between(RowNum_OG, 2073074, 2073094) # 2073084
+#            )
+#     )
 
 ```
 
@@ -1048,7 +1173,7 @@ prop.table(as.table(as.matrix(ExtremeTravDist_Spread)
 ```
 
 
-Investigatio of TravelDistance_Mi.
+Investigation of TravelDistance_Mi.
 
 Looking at specific buses and StartStop_ID.
 ```{r}
@@ -1101,21 +1226,38 @@ View(filter(AllDays_NewOrder,
 
 Investigation of TravelDistance_Mi & TravelDistance_Mi_New.
 
-If TravelDisntace_Mi is below the 5th percentile for that StartStop_ID, or if TravelDisntace_Mi is above the 95th percentile for that StartStop_ID, or if TravelDistance_Mi is NA (when the BusDay_EventNum !=1), consider this an outlier.  In this case, replace the value with the mean for that StartStop_ID and HourGroup (TD_Mi_SSHG_Mean_F).
+If TravelDisntace_Mi is below the 5th percentile for that StartStop_ID, or if TravelDisntace_Mi is above the 95th percentile for that StartStop_ID, or if TravelDistance_Mi is NA (when the BusDay_EventNum !=1), consider this an outlier.  In this case, replace the value with the mean for that StartStop_ID and HourGroup (TD_Mi_SSHG_Mean_F), or if there are not enough values at the HourGroup level, replace it with the mean for that StartStop_ID.
 ```{r}
 
-View(tail(AllDays_NewOrder, 500))
+# View(tail(AllDays_NewOrder, 500))
 
 AllDays_NewTravelDist <- 
   mutate(AllDays_NewOrder,
-         TravelDistance_Mi_New = ifelse(TravelDistance_Mi < TD_Mi_SSHG_q5 |
-                                          TravelDistance_Mi > TD_Mi_SSHG_q95 |
-                                          (is.na(TravelDistance_Mi) &
-                                             BusDay_EventNum != 1
-                                          ),
+         TravelDistance_Mi_New = ifelse(!is.na(TravelDistance_Mi) & 
+                                          (TravelDistance_Mi < TD_Mi_SSHG_q5 |
+                                             TravelDistance_Mi > TD_Mi_SSHG_q95
+                                          ) &
+                                          TD_Mi_SSHG_Cnt_F >= 20,
                                         TD_Mi_SSHG_Mean_F,
+                                 ifelse(!is.na(TravelDistance_Mi) & 
+                                          (TravelDistance_Mi < TD_Mi_SSHG_q5 |
+                                             TravelDistance_Mi > TD_Mi_SSHG_q95
+                                          ) &
+                                          TD_Mi_SSHG_Cnt_F < 20 &
+                                          TD_Mi_SS_Cnt_F >= 20,
+                                        TD_Mi_SS_Mean_F,
+                                 ifelse(!is.na(TravelDistance_Mi) & 
+                                          (TravelDistance_Mi < TD_Mi_SSHG_q5 |
+                                             TravelDistance_Mi > TD_Mi_SSHG_q95
+                                          ) &
+                                          TD_Mi_SS_Cnt_F < 20 &
+                                          TD_Mi_SS_Cnt >= 20,
+                                        TD_Mi_SS_Mean,
+                                 ifelse(is.na(TravelDistance_Mi) &
+                                          BusDay_EventNum != 1,
+                                        TravelDistance_Mi_Hvrs,
                                         TravelDistance_Mi
-                                       )
+                                       ))))
         )
 
 str(AllDays_NewTravelDist)
@@ -1129,6 +1271,14 @@ Investigation of TravelDistance_Mi & TravelDistance_Mi_Hvrs & TravelDistance_Mi_
 Quick summary and then correlation calculation.
 ```{r}
 
+# No rows meet this criteria anymore
+nrow(filter(AllDays_NewTravelDist,
+            is.na(TravelDistance_Mi_New) &
+              BusDay_EventNum != 1
+           )
+    )
+
+
 summary(select(AllDays_NewTravelDist,
                TravelDistance_Mi,
                TravelDistance_Mi_Hvrs,
@@ -1136,13 +1286,24 @@ summary(select(AllDays_NewTravelDist,
               )
        )
 
-TravDist_Corr <- as.matrix(cor(x = AllDays_NewTravelDist$TravelDistance_Mi_Hvrs,
-                               y = AllDays_NewTravelDist$TravelDistance_Mi,
-                               use = "pairwise"
-                              )
-                          )
+summary(select(filter(AllDays_NewTravelDist,
+                      BusDay_EventNum != 1
+                     ),
+               TravelDistance_Mi,
+               TravelDistance_Mi_Hvrs,
+               TravelDistance_Mi_New
+              )
+       )
 
-TravDist_Corr
+
+View(cor(select(AllDays_NewTravelDist,
+                TravelDistance_Mi,
+                TravelDistance_Mi_Hvrs,
+                TravelDistance_Mi_New
+               ),
+         use = "pairwise.complete.obs"
+        )
+    )
 
 ```
 
@@ -1178,15 +1339,19 @@ lm_eqn <- function(df, y, x){
 
 ```
 
+
+Investigation of TravelDistance_Mi & TravelDistance_Mi_Hvrs & TravelDistance_Mi_New.
+
+Scatter plot (using a 10% sample to making plotting time faster and to reduce un-needed data in the "same" splot).
 ```{r}
 
+set.seed(123456789)
 AllDays_NewTravelDist_10Pct <- filter(AllDays_NewTravelDist,
                                       !is.na(TravelDistance_Mi)
                                      ) %>% 
-  mutate(DistCalcMethod = factor(ifelse(TravelDistance_Mi == 0 |
-                                          TravelDistance_Mi > 1.0812500000,
-                                        "Outlier",
-                                        "Normal"
+  mutate(DistCalcMethod = factor(ifelse(TravelDistance_Mi == TravelDistance_Mi_Hvrs,
+                                        "Normal",
+                                        "Modified"
                                        )
                                 )
         ) %>% 
@@ -1203,18 +1368,12 @@ TravDist_MiVsCalc <- ggplot(AllDays_NewTravelDist_10Pct,
   scale_shape(solid = FALSE) +
   geom_smooth(method = "lm", colour = "blue") +
   geom_abline(intercept = 0, slope = 1, colour = "red") +
-  # coord_cartesian(xlim = c(0, 70), ylim = c(0,70)
+  # coord_cartesian(xlim = c(0, 1.5), ylim = c(0, 1.5)
   #                ) +
-  # scale_x_continuous(breaks = seq(0, 70, 10)
+  # scale_x_continuous(breaks = seq(0, 1.5, 0.25)
   #                   ) +
-  # scale_y_continuous(breaks = seq(0, 70, 10)
+  # scale_y_continuous(breaks = seq(0, 1.5, 0.25)
   #                   ) +
-  coord_cartesian(xlim = c(0, 1.5), ylim = c(0, 1.5)
-                 ) +
-  scale_x_continuous(breaks = seq(0, 1.5, 0.25)
-                    ) +
-  scale_y_continuous(breaks = seq(0, 1.5, 0.25)
-                    ) +
   theme(legend.position = "bottom") +
   annotate(label = lm_eqn(df = AllDays_NewTravelDist_10Pct,
                           y = AllDays_NewTravelDist_10Pct$TravelDistance_Mi,
