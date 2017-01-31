@@ -618,9 +618,6 @@ Stats_StSt <- group_by(Quantiles_SS_dt,
         ) %>% 
   data.frame()
 
-
-# rm(Quantiles_SS_dt)
-# rm(AllDays_BusDay)
 str(Stats_StSt)
 View(head(Stats_StSt, 50))
 
@@ -690,10 +687,8 @@ Stats_StSt_HrGrp <- group_by(Quantiles_SSHG_dt,
         ) %>% 
   data.frame()
 
-# rm(Quantiles_SSHG_dt)
-# rm(Stats_StSt)
 str(Stats_StSt_HrGrp)
-View(head(Stats_StSt_HrGrp, 50))
+# View(head(Stats_StSt_HrGrp, 50))
 
 ```
 
@@ -702,6 +697,11 @@ Feature engineering.
 
 Creating a BusEventRoute row number, and a RouteAlt_Lag1 indicator for future identification purposes. 
 ```{r}
+
+rm(Quantiles_SS_dt)
+rm(AllDays_BusDay)
+rm(Quantiles_SSHG_dt)
+rm(Stats_StSt)
 
 AllDays_BusDayRoute <- group_by(Stats_StSt_HrGrp,
                                 Bus_ID,
@@ -734,7 +734,6 @@ AllDays_BusDayRoute <- group_by(Stats_StSt_HrGrp,
         ) %>% 
   data.frame()
 
-rm(Stats_StSt_HrGrp)
 str(AllDays_BusDayRoute)
 
 ```
@@ -744,6 +743,8 @@ Feature engineering.
 
 Calculating a variable to know if the RouteAlt changed. Could be useful in helping identifying weirdness in calculated distances and speeds.
 ```{r}
+
+rm(Stats_StSt_HrGrp)
 
 AllDays_DirChange <- AllDays_BusDayRoute %>% 
   mutate(DirChange = ifelse(RouteAlt == RouteAlt_Lag1,
@@ -757,7 +758,6 @@ AllDays_DirChange <- AllDays_BusDayRoute %>%
                             )
         )
 
-rm(AllDays_BusDayRoute)
 str(AllDays_DirChange)
 
 ```
@@ -765,6 +765,8 @@ str(AllDays_DirChange)
 
 Re-ordering the variables to ease with comprehension.
 ```{r}
+
+rm(AllDays_BusDayRoute)
 
 AllDays_NewOrder <-  select(AllDays_DirChange,
                             RowNum_OG,
@@ -908,8 +910,6 @@ TravDistMi_Pctiles <- group_by(TravDistMi_Ntile,
   mutate(CumSumPAtP = cumsum(PctsAtPctile)
         )
 
-rm(TravDistMi_Ntile)
-rm(TravDistMi_Ntile_Rows)
 View(TravDistMi_Pctiles)
 
 ```
@@ -919,6 +919,9 @@ Investigation of TravelDistance_Mi.
 
 Why are some TravelDistance_Mi "NA"? It looks like partially because the records are the first trip of the day (for that bus), so I purposefully set the distance to "NA". Another reason is due to the odometer recording a value less than the previous odometer recording. In most cases, I have no explanation for this - though I have observed about 67% of all instances where TravelDistance_Mi is NA (other than because it's the first record of the day) are instances where DirChange2 is "Change". This is weird and should be asked to WMATA.
 ```{r}
+
+rm(TravDistMi_Ntile)
+rm(TravDistMi_Ntile_Rows)
 
 # View(head(AllDays_NewOrder, 500))
 
@@ -1254,14 +1257,50 @@ AllDays_NewTravelDist <-
                                           TD_Mi_SS_Cnt >= 20,
                                         TD_Mi_SS_Mean,
                                  ifelse(is.na(TravelDistance_Mi) &
-                                          BusDay_EventNum != 1,
+                                          BusDay_EventNum != 1 &
+                                          TravelDistance_Mi_Hvrs != 0,
                                         TravelDistance_Mi_Hvrs,
+                                 ifelse(is.na(TravelDistance_Mi) &
+                                          BusDay_EventNum != 1 &
+                                          TravelDistance_Mi_Hvrs == 0,
+                                        TD_Mi_SS_Mean,
                                         TravelDistance_Mi
-                                       ))))
+                                       ))))),
+         TravelDistance_Mi_New_Label = 
+           factor(ifelse(!is.na(TravelDistance_Mi) &
+                           (TravelDistance_Mi < TD_Mi_SSHG_q5 |
+                              TravelDistance_Mi > TD_Mi_SSHG_q95
+                           ) &
+                           TD_Mi_SSHG_Cnt_F >= 20,
+                         "TD_Mi_SSHG_Mean_F",
+                  ifelse(!is.na(TravelDistance_Mi) &
+                           (TravelDistance_Mi < TD_Mi_SSHG_q5 |
+                              TravelDistance_Mi > TD_Mi_SSHG_q95
+                           ) &
+                           TD_Mi_SSHG_Cnt_F < 20 &
+                           TD_Mi_SS_Cnt_F >= 20,
+                         "TD_Mi_SS_Mean_F",
+                  ifelse(!is.na(TravelDistance_Mi) &
+                           (TravelDistance_Mi < TD_Mi_SSHG_q5 |
+                              TravelDistance_Mi > TD_Mi_SSHG_q95
+                           ) &
+                           TD_Mi_SS_Cnt_F < 20 &
+                           TD_Mi_SS_Cnt >= 20,
+                         "TD_Mi_SS_Mean",
+                  ifelse(is.na(TravelDistance_Mi) &
+                           BusDay_EventNum != 1 &
+                           TravelDistance_Mi_Hvrs != 0,
+                         "TravelDistance_Mi_Hvrs",
+                  ifelse(is.na(TravelDistance_Mi) &
+                           BusDay_EventNum != 1 &
+                           TravelDistance_Mi_Hvrs == 0,
+                         TD_Mi_SS_Mean,
+                         "TravelDistance_Mi"
+                        )))))
+                 )
         )
 
 str(AllDays_NewTravelDist)
-# rm(AllDays_NewOrder)
 
 ```
 
@@ -1271,8 +1310,11 @@ Investigation of TravelDistance_Mi & TravelDistance_Mi_Hvrs & TravelDistance_Mi_
 Quick summary and then correlation calculation.
 ```{r}
 
-# No rows meet this criteria anymore
-nrow(filter(AllDays_NewTravelDist,
+rm(AllDays_NewOrder)
+
+
+# 38 rows meet this criteria anymore  --  appears to be the case when both the Lat Long calculations, and the TravelDistance calculations did not function properly.
+View(filter(AllDays_NewTravelDist,
             is.na(TravelDistance_Mi_New) &
               BusDay_EventNum != 1
            )
@@ -1296,14 +1338,13 @@ summary(select(filter(AllDays_NewTravelDist,
        )
 
 
-View(cor(select(AllDays_NewTravelDist,
-                TravelDistance_Mi,
-                TravelDistance_Mi_Hvrs,
-                TravelDistance_Mi_New
-               ),
-         use = "pairwise.complete.obs"
-        )
-    )
+cor(select(AllDays_NewTravelDist,
+           TravelDistance_Mi,
+           TravelDistance_Mi_Hvrs,
+           TravelDistance_Mi_New
+          ),
+    use = "pairwise.complete.obs"
+  )
 
 ```
 
@@ -1349,39 +1390,42 @@ set.seed(123456789)
 AllDays_NewTravelDist_10Pct <- filter(AllDays_NewTravelDist,
                                       !is.na(TravelDistance_Mi)
                                      ) %>% 
-  mutate(DistCalcMethod = factor(ifelse(TravelDistance_Mi == TravelDistance_Mi_Hvrs,
-                                        "Normal",
-                                        "Modified"
-                                       )
-                                )
-        ) %>% 
+  rename(DistMethod = TravelDistance_Mi_New_Label) %>% 
   sample_frac(0.1)
 
 
-TravDist_MiVsCalc <- ggplot(AllDays_NewTravelDist_10Pct,
-                            aes(x = TravelDistance_Mi_Hvrs,
+TravDist_MiVsCalc <- ggplot(select(AllDays_NewTravelDist_10Pct,
+                                   TravelDistance_Mi_New,
+                                   TravelDistance_Mi,
+                                   DistMethod
+                                  ),
+                            aes(x = TravelDistance_Mi_New,
                                 y = TravelDistance_Mi,
-                                colour = DistCalcMethod
+                                colour = DistMethod
                                )
                            ) +
+  scale_colour_manual(values = c("red","blue", "green", "orange")
+                     ) +
   geom_point(shape = 1, alpha = 0.5) +
   scale_shape(solid = FALSE) +
   geom_smooth(method = "lm", colour = "blue") +
   geom_abline(intercept = 0, slope = 1, colour = "red") +
-  # coord_cartesian(xlim = c(0, 1.5), ylim = c(0, 1.5)
-  #                ) +
-  # scale_x_continuous(breaks = seq(0, 1.5, 0.25)
-  #                   ) +
-  # scale_y_continuous(breaks = seq(0, 1.5, 0.25)
-  #                   ) +
-  theme(legend.position = "bottom") +
+  coord_cartesian(xlim = c(0, 1.5), ylim = c(0, 1.5)
+                 ) +
+  scale_x_continuous(breaks = seq(0, 1.5, 0.25)
+                    ) +
+  scale_y_continuous(breaks = seq(0, 1.5, 0.25)
+                    ) +
+  theme(legend.position = c(0.85, 0.40),
+        legend.text = element_text(size = 8)
+       ) +
   annotate(label = lm_eqn(df = AllDays_NewTravelDist_10Pct,
                           y = AllDays_NewTravelDist_10Pct$TravelDistance_Mi,
-                          x = AllDays_NewTravelDist_10Pct$TravelDistance_Mi_Hvrs
+                          x = AllDays_NewTravelDist_10Pct$TravelDistance_Mi_New
                          ),
            # x = 62,
            # y = 20,
-           x = 0.95,
+           x = 1.15,
            y = 1.45,
            geom = "text",
            size = 3,
@@ -1391,14 +1435,14 @@ TravDist_MiVsCalc <- ggplot(AllDays_NewTravelDist_10Pct,
   annotate(label = "Reference Line (slope = 1)",
            # x = 16,
            # y = 30,
-           x = 1.38,
-           y = 1.13,
+           x = 1.32,
+           y = 1.05,
            geom = "text",
            size = 3,
            colour = "red"
           ) +
-  labs(title = "TravelDistance_Mi vs. TravelDistance_Mi_Hvrs",
-       x = "TravelDistance_Mi_Hvrs",
+  labs(title = "TravelDistance_Mi vs. TravelDistance_Mi_New",
+       x = "TravelDistance_Mi_New",
        y = "TravelDistance_Mi"
       )
 # +
@@ -1414,15 +1458,19 @@ Investigation of TravelDistance_Mi & TravelDistance_Mi_Hvrs & TravelDistance_Mi_
 Graphing test with rbokeh.
 ```{r}
 
-TravDist_MiVsCalc_Bokeh <- figure(data = AllDays_NewTravelDist_10Pct,
+TravDist_MiVsCalc_Bokeh <- figure(data = select(AllDays_NewTravelDist_10Pct,
+                                                TravelDistance_Mi_New,
+                                                TravelDistance_Mi,
+                                                DistMethod
+                                               ),
                                   xlim = c(0, 1.5),
                                   ylim = c(0, 1.5),
                                   legend_location = "bottom_right"
                                  ) %>% 
-  ly_points(x = TravelDistance_Mi_Hvrs,
+  ly_points(x = TravelDistance_Mi_New,
             y = TravelDistance_Mi,
-            color = DistCalcMethod,
-            hover = c(TravelDistance_Mi_Hvrs, TravelDistance_Mi)
+            color = DistMethod,
+            hover = c(TravelDistance_Mi_New, TravelDistance_Mi, DistMethod)
            ) %>% 
   ly_abline(a = 0, b = 1, color = "red")
 
@@ -1433,24 +1481,28 @@ TravDist_MiVsCalc_Bokeh
 
 Investigation of TravelDistance_Mi_New.
 
-~23% of rides are still showing as less than 0.1 miles of TravelDistance_Mi_New.
+~11% of rides are still showing as less than 0.1 miles of TravelDistance_Mi_New.
 ```{r}
+
+rm(TravDist_MiVsCalc_Bokeh)
+rm(AllDays_NewTravelDist_10Pct)
+
 
 summary(AllDays_NewTravelDist$TravelDistance_Mi_New)
 
 TravDistMiNew_Ntile <- as.data.frame(AllDays_NewTravelDist$TravelDistance_Mi_New) %>% 
-  mutate(Pctile = ntile(AllDays_NewTravelDist$TravelDistance_Mi_New, 100),
-         MinR = min_rank(AllDays_NewTravelDist$TravelDistance_Mi_New),
+  mutate(# Pctile = ntile(AllDays_NewTravelDist$TravelDistance_Mi_New, 100),
+         # MinR = min_rank(AllDays_NewTravelDist$TravelDistance_Mi_New),
          PctR = percent_rank(AllDays_NewTravelDist$TravelDistance_Mi_New),
          PctR_Round = round(PctR, 2)
         ) 
 
 colnames(TravDistMiNew_Ntile)[1] <- "TravelDistance_Mi_New"
-str(TravDistMiNew_Ntile)
+# str(TravDistMiNew_Ntile)
 
 TravDistMiNew_Ntile_Rows <- nrow(TravDistMiNew_Ntile)
 
-View(tail(TravDistMiNew_Ntile, 500))
+# View(tail(TravDistMiNew_Ntile, 500))
 
 
 TravDistMiNew_Pctiles <- group_by(TravDistMiNew_Ntile,
@@ -1464,7 +1516,7 @@ TravDistMiNew_Pctiles <- group_by(TravDistMiNew_Ntile,
   mutate(CumSumPAtP = cumsum(PctsAtPctile)
         )
 
-View(TravDistMi_Pctiles)
+View(TravDistMiNew_Pctiles)
 
 ```
 
@@ -1473,6 +1525,10 @@ Investigation of TravelDistance_Mi_New.
 
 Why are there still some small or zero TravelDistance_Mi_New values.
 ```{r}
+
+rm(TravDistMiNew_Ntile)
+rm(TravDistMiNew_Ntile_Rows)
+
 
 View(filter(AllDays_NewTravelDist,
             TravelDistance_Mi_New == 0
