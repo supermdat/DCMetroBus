@@ -557,10 +557,75 @@ View(filter(AllDays_BusDay,
 ```
 
 
+Stats (quantiles) overall for TravelDistance_Mi.
+```{r}
+
+Quantiles_dt <- AllDays_BusDay %>% 
+  mutate(TD_Mi_q2 = quantile(x = TravelDistance_Mi, probs = 0.02, na.rm = TRUE),
+         TD_Mi_q98 = quantile(x = TravelDistance_Mi, probs = 0.98, na.rm = TRUE),
+         TT_Sec_q2 = quantile(x = TravelTime_Sec, probs = 0.02, na.rm = TRUE),
+         TT_Sec_q98 = quantile(x = TravelTime_Sec, probs = 0.98, na.rm = TRUE),
+         TT_Hr_q2 = quantile(x = TravelTime_Hr, probs = 0.02, na.rm = TRUE),
+         TT_Hr_q98 = quantile(x = TravelTime_Hr, probs = 0.98, na.rm = TRUE)
+        ) %>% 
+  data.table()
+
+
+Stats <- Quantiles_dt %>% 
+  mutate(TD_Mi_Mean = mean(TravelDistance_Mi, na.rm = TRUE),
+         TD_Mi_Mean_F = mean(TravelDistance_Mi[TD_Mi_q2 <= TravelDistance_Mi & TravelDistance_Mi <= TD_Mi_q98],
+                             na.rm = TRUE
+                            ),
+         TD_Mi_Med = median(TravelDistance_Mi, na.rm = TRUE),
+         TD_Mi_Med_F = median(TravelDistance_Mi[TD_Mi_q2 <= TravelDistance_Mi & TravelDistance_Mi <= TD_Mi_q98],
+                              na.rm = TRUE
+                             ),
+         TD_Mi_Cnt = sum(!is.na(TravelDistance_Mi)
+                        ),
+         TD_Mi_Cnt_F = sum(!is.na(TravelDistance_Mi[TD_Mi_q2 <= TravelDistance_Mi & TravelDistance_Mi <= TD_Mi_q98]
+                                 )
+                          ),
+            
+         TT_Sec_Mean = mean(TravelTime_Sec, na.rm = TRUE),
+         TT_Sec_Mean_F = mean(TravelTime_Sec[TT_Sec_q2 <= TravelTime_Sec & TravelTime_Sec <= TT_Sec_q98],
+                              na.rm = TRUE
+                             ),
+         TT_Sec_Med = median(TravelTime_Sec, na.rm = TRUE),
+         TT_Sec_Med_F = median(TravelTime_Sec[TT_Sec_q2 <= TravelTime_Sec & TravelTime_Sec <= TT_Sec_q98],
+                               na.rm = TRUE
+                              ),
+         TT_Sec_Cnt = sum(!is.na(TravelTime_Sec)
+                         ),
+         TT_Sec_Cnt_F = sum(!is.na(TravelTime_Sec[TT_Sec_q2 <= TravelTime_Sec & TravelTime_Sec <= TT_Sec_q98]
+                                   )
+                           ),
+
+         TT_Hr_Mean = mean(TravelTime_Hr, na.rm = TRUE),
+         TT_Hr_Mean_F = mean(TravelTime_Hr[TT_Hr_q2 <= TravelTime_Hr & TravelTime_Hr <= TT_Hr_q98],
+                             na.rm = TRUE
+                            ),
+         TT_Hr_Med = median(TravelTime_Hr, na.rm = TRUE),
+         TT_Hr_Med_F = median(TravelTime_Hr[TT_Hr_q2 <= TravelTime_Hr & TravelTime_Hr <= TT_Hr_q98],
+                              na.rm = TRUE
+                             ),
+         TT_Hr_Cnt = sum(!is.na(TravelTime_Hr)
+                        ),
+         TT_Hr_Cnt_F = sum(!is.na(TravelTime_Hr[TT_Hr_q2 <= TravelTime_Hr & TravelTime_Hr <= TT_Hr_q98]
+                                 )
+                          )
+        ) %>% 
+  data.frame()
+
+str(Stats)
+# View(head(Stats, 50))
+
+```
+
+
 Stats for StartStop_ID.
 ```{r}
 
-Quantiles_SS_dt <- group_by(AllDays_BusDay,
+Quantiles_SS_dt <- group_by(Stats,
                             StartStop_ID
                            ) %>% 
   mutate(TD_Mi_SS_q5 = quantile(x = TravelDistance_Mi, probs = 0.05, na.rm = TRUE),
@@ -619,13 +684,16 @@ Stats_StSt <- group_by(Quantiles_SS_dt,
   data.frame()
 
 str(Stats_StSt)
-View(head(Stats_StSt, 50))
+# View(head(Stats_StSt, 50))
 
 ```
 
 
 Stats for StartStop_ID with Event_Time_HrGroup.
 ```{r}
+
+rm(Stats)
+
 
 Quantiles_SSHG_dt <- group_by(Stats_StSt,
                               StartStop_ID,
@@ -698,6 +766,7 @@ Feature engineering.
 Creating a BusEventRoute row number, and a RouteAlt_Lag1 indicator for future identification purposes. 
 ```{r}
 
+rm(Quantiles_dt)
 rm(Quantiles_SS_dt)
 rm(AllDays_BusDay)
 rm(Quantiles_SSHG_dt)
@@ -809,52 +878,76 @@ AllDays_NewOrder <-  select(AllDays_DirChange,
                             TravelDistance_Ft,
                             TravelDistance_Mi,
                             TravelDistance_Mi_Hvrs,
+                            TD_Mi_q2,
+                            TD_Mi_q98,
                             TD_Mi_SS_q5,
                             TD_Mi_SS_q95,
                             TD_Mi_SSHG_q5,
                             TD_Mi_SSHG_q95,
+                            TD_Mi_Mean,
+                            TD_Mi_Mean_F,
                             TD_Mi_SS_Mean,
                             TD_Mi_SS_Mean_F,
                             TD_Mi_SSHG_Mean,
                             TD_Mi_SSHG_Mean_F,
+                            TD_Mi_Med,
+                            TD_Mi_Med_F,
                             TD_Mi_SS_Med,
                             TD_Mi_SS_Med_F,
                             TD_Mi_SSHG_Med,
                             TD_Mi_SSHG_Med_F,
+                            TD_Mi_Cnt,
+                            TD_Mi_Cnt_F,
                             TD_Mi_SS_Cnt,
                             TD_Mi_SS_Cnt_F,
                             TD_Mi_SSHG_Cnt,
                             TD_Mi_SSHG_Cnt_F,
                             TravelTime_Sec,
+                            TT_Sec_q2,
+                            TT_Sec_q98,
                             TT_Sec_SS_q5,
                             TT_Sec_SS_q95,
                             TT_Sec_SSHG_q5,
                             TT_Sec_SSHG_q95,
+                            TT_Sec_Mean,
+                            TT_Sec_Mean_F,
                             TT_Sec_SS_Mean,
                             TT_Sec_SS_Mean_F,
                             TT_Sec_SSHG_Mean,
                             TT_Sec_SSHG_Mean_F,
+                            TT_Sec_Med,
+                            TT_Sec_Med_F,
                             TT_Sec_SS_Med,
                             TT_Sec_SS_Med_F,
                             TT_Sec_SSHG_Med,
                             TT_Sec_SSHG_Med_F,
+                            TT_Sec_Cnt,
+                            TT_Sec_Cnt_F,
                             TT_Sec_SS_Cnt,
                             TT_Sec_SS_Cnt_F,
                             TT_Sec_SSHG_Cnt,
                             TT_Sec_SSHG_Cnt_F,
                             TravelTime_Hr,
+                            TT_Hr_q2,
+                            TT_Hr_q98,
                             TT_Hr_SS_q5,
                             TT_Hr_SS_q95,
                             TT_Hr_SSHG_q5,
                             TT_Hr_SSHG_q95,
+                            TT_Hr_Mean,
+                            TT_Hr_Mean_F,
                             TT_Hr_SS_Mean,
                             TT_Hr_SS_Mean_F,
                             TT_Hr_SSHG_Mean,
                             TT_Hr_SSHG_Mean_F,
+                            TT_Hr_Med,
+                            TT_Hr_Med_F,
                             TT_Hr_SS_Med,
                             TT_Hr_SS_Med_F,
                             TT_Hr_SSHG_Med,
                             TT_Hr_SSHG_Med_F,
+                            TT_Hr_Cnt,
+                            TT_Hr_Cnt_F,
                             TT_Hr_SS_Cnt,
                             TT_Hr_SS_Cnt_F,
                             TT_Hr_SSHG_Cnt,
@@ -866,7 +959,7 @@ rm(AllDays_DirChange)
 str(AllDays_NewOrder)
 
 # View(head(AllDays_NewOrder, 500))
-View(tail(AllDays_NewOrder, 500))
+# View(tail(AllDays_NewOrder, 500))
 
 ```
 
@@ -1297,6 +1390,18 @@ AllDays_NewTravelDist <-
                          TD_Mi_SS_Mean,
                          "TravelDistance_Mi"
                         )))))
+                 ),
+         TravelDistance_Mi_NewHvrs = ifelse(TravelDistance_Mi_New < TD_Mi_q2 |
+                                              TravelDistance_Mi_New > TD_Mi_q98,
+                                            TravelDistance_Mi_Hvrs,
+                                            TravelDistance_Mi_New
+                                           ),
+         TravelDistance_Mi_NewHvrs_Label = 
+           factor(ifelse(TravelDistance_Mi_New < TD_Mi_q2 |
+                           TravelDistance_Mi_New > TD_Mi_q98,
+                         "TravelDistance_Mi_Hvrs",
+                         TravelDistance_Mi_New_Label
+                        )
                  )
         )
 
@@ -1324,7 +1429,8 @@ View(filter(AllDays_NewTravelDist,
 summary(select(AllDays_NewTravelDist,
                TravelDistance_Mi,
                TravelDistance_Mi_Hvrs,
-               TravelDistance_Mi_New
+               TravelDistance_Mi_New,
+               TravelDistance_Mi_NewHvrs
               )
        )
 
@@ -1333,7 +1439,8 @@ summary(select(filter(AllDays_NewTravelDist,
                      ),
                TravelDistance_Mi,
                TravelDistance_Mi_Hvrs,
-               TravelDistance_Mi_New
+               TravelDistance_Mi_New,
+               TravelDistance_Mi_NewHvrs
               )
        )
 
@@ -1341,7 +1448,8 @@ summary(select(filter(AllDays_NewTravelDist,
 cor(select(AllDays_NewTravelDist,
            TravelDistance_Mi,
            TravelDistance_Mi_Hvrs,
-           TravelDistance_Mi_New
+           TravelDistance_Mi_New,
+           TravelDistance_Mi_NewHvrs
           ),
     use = "pairwise.complete.obs"
   )
@@ -1490,14 +1598,20 @@ rm(AllDays_NewTravelDist_10Pct)
 
 summary(AllDays_NewTravelDist$TravelDistance_Mi_New)
 
-TravDistMiNew_Ntile <- as.data.frame(AllDays_NewTravelDist$TravelDistance_Mi_New) %>% 
+TravDistMiNew_Ntile <- as.data.frame(select(AllDays_NewTravelDist,
+                                            TravelDistance_Mi_New,
+                                            TravelDistance_Mi_NewHvrs
+                                           )
+                                    ) %>% 
   mutate(# Pctile = ntile(AllDays_NewTravelDist$TravelDistance_Mi_New, 100),
          # MinR = min_rank(AllDays_NewTravelDist$TravelDistance_Mi_New),
-         PctR = percent_rank(AllDays_NewTravelDist$TravelDistance_Mi_New),
-         PctR_Round = round(PctR, 2)
+         PctR_New = percent_rank(AllDays_NewTravelDist$TravelDistance_Mi_New),
+         PctR_NewH = percent_rank(AllDays_NewTravelDist$TravelDistance_Mi_NewHvrs),
+         PctR_Round_New = round(PctR_New, 2),
+         PctR_Round_NewH = round(PctR_NewH, 2)
         ) 
 
-colnames(TravDistMiNew_Ntile)[1] <- "TravelDistance_Mi_New"
+# colnames(TravDistMiNew_Ntile)[1] <- "TravelDistance_Mi_New"
 # str(TravDistMiNew_Ntile)
 
 TravDistMiNew_Ntile_Rows <- nrow(TravDistMiNew_Ntile)
@@ -1506,14 +1620,18 @@ TravDistMiNew_Ntile_Rows <- nrow(TravDistMiNew_Ntile)
 
 
 TravDistMiNew_Pctiles <- group_by(TravDistMiNew_Ntile,
-                                  PctR_Round
+                                  PctR_Round_New
                                  ) %>% 
   summarise(
-    MinTravDistMiAtPctile = min(TravelDistance_Mi_New),
-    CntsAtPctile = n(),
-    PctsAtPctile = CntsAtPctile / TravDistMiNew_Ntile_Rows
+    MinTDMiAtPctile_N = min(TravelDistance_Mi_New),
+    MinTDMiAtPctile_H = min(TravelDistance_Mi_NewHvrs),
+    CntsAtPctile_N = sum(!is.na(TravelDistance_Mi_New)),
+    CntsAtPctile_H = sum(!is.na(TravelDistance_Mi_NewHvrs)),
+    PctsAtPctile_N = CntsAtPctile_N / TravDistMiNew_Ntile_Rows,
+    PctsAtPctile_H = CntsAtPctile_H / TravDistMiNew_Ntile_Rows
   ) %>% 
-  mutate(CumSumPAtP = cumsum(PctsAtPctile)
+  mutate(CumSumPAtP_N = cumsum(PctsAtPctile_N),
+         CumSumPAtP_H = cumsum(PctsAtPctile_H)
         )
 
 View(TravDistMiNew_Pctiles)
@@ -1531,10 +1649,36 @@ rm(TravDistMiNew_Ntile_Rows)
 
 
 View(filter(AllDays_NewTravelDist,
-            TravelDistance_Mi_New == 0
-           )
+            !is.na(TravelDistance_Mi_New)
+           ) %>% 
+       arrange(TravelDistance_Mi_New) %>% 
+       head(500)
     )
 
+View(filter(AllDays_NewTravelDist,
+            !is.na(TravelDistance_Mi_New)
+           ) %>% 
+       arrange(TravelDistance_Mi_New) %>% 
+       tail(500)
+    )
+
+
+
+
+filter(AllDays_NewTravelDist,
+       is.na(TravelDistance_Mi_New)
+       ) %>% 
+  group_by(TravelDistance_Mi_New_Label) %>% 
+  summarise(CntNum = n()
+            # ,
+            # CntPct = n() / nrow(filter(AllDays_NewTravelDist,
+            #                            is.na(TravelDistance_Mi_New)
+            #                           )
+            #                    )
+           )
+
+      
+      
 # examples of TravelDistance_Mi_New values that are zero.
 View(filter(AllDays_NewTravelDist,
             (RowNum_OG >= 1652 & RowNum_OG <= 1672) | # 1662  --  1st trip of a new route & no change in lat lon
