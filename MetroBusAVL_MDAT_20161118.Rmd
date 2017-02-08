@@ -1624,7 +1624,7 @@ TravDist_MiVsCalc_Bokeh
 
 Investigation of TravelDistance_Mi_New.
 
-~11% of rides are still showing as less than 0.1 miles of TravelDistance_Mi_New.
+Calculating the minimum TravelDistance_Mi_New value at each percentile.
 ```{r}
 
 rm(TravDist_MiVsCalc_Bokeh)
@@ -1650,47 +1650,136 @@ summary(select(filter(AllDays_NewTravelDist,
        )
 
 
-TravDistMiNew_Ntile <- as.data.frame(select(AllDays_NewTravelDist,
-                                            StartStop_ID,
-                                            TravelDistance_Mi_New_Label,
-                                            TravelDistance_Mi_NewHvrs_Label,
-                                            TravelDistance_Mi_New,
-                                            TravelDistance_Mi_NewHvrs
-                                           )
-                                    ) %>% 
-  mutate(# Pctile = ntile(AllDays_NewTravelDist$TravelDistance_Mi_New, 100),
-         # MinR = min_rank(AllDays_NewTravelDist$TravelDistance_Mi_New),
-         PctR_N = percent_rank(AllDays_NewTravelDist$TravelDistance_Mi_New),
+TravDistMiN_Ntile <- as.data.frame(select(AllDays_NewTravelDist,
+                                          StartStop_ID,
+                                          TravelDistance_Mi_New_Label,
+                                          # TravelDistance_Mi_NewHvrs_Label,
+                                          TravelDistance_Mi_New
+                                          # TravelDistance_Mi_NewHvrs
+                                         )
+                                  ) %>% 
+  mutate(PctR_N = percent_rank(AllDays_NewTravelDist$TravelDistance_Mi_New),
+         # PctR_H = percent_rank(AllDays_NewTravelDist$TravelDistance_Mi_NewHvrs),
+         PctR_Round_N = round(PctR_N, 2)
+         # PctR_Round_H = round(PctR_H, 2)
+        ) 
+
+# str(TravDistMiN_Ntile)
+# View(head(TravDistMiN_Ntile, 500))
+
+TravDistMiN_Ntile_Rows <- nrow(TravDistMiN_Ntile)
+
+# View(tail(TravDistMiN_Ntile, 500))
+
+
+TravDistMiN_Pctiles <- group_by(TravDistMiN_Ntile,
+                                PctR_Round_N
+                               ) %>% 
+  summarise(
+    MinTDMiAtPctile_N = min(TravelDistance_Mi_New),
+    # MinTDMiAtPctile_H = min(TravelDistance_Mi_NewHvrs),
+    CntsAtPctile_N = sum(!is.na(TravelDistance_Mi_New)),
+    # CntsAtPctile_H = sum(!is.na(TravelDistance_Mi_NewHvrs)),
+    PctsAtPctile_N = CntsAtPctile_N / TravDistMiN_Ntile_Rows
+    # PctsAtPctile_H = CntsAtPctile_H / TravDistMiN_Ntile_Rows
+  ) %>% 
+  mutate(CumSumPAtP_N = cumsum(PctsAtPctile_N)
+         # CumSumPAtP_H = cumsum(PctsAtPctile_H)
+        )
+
+# View(TravDistMiN_Pctiles)
+
+```
+
+
+Investigation of TravelDistance_Mi_NewHvrs
+
+Calculating the minimum TravelDistance_Mi_NewHvrs value at each percentile.
+```{r}
+
+TravDistMiH_Ntile <- as.data.frame(select(AllDays_NewTravelDist,
+                                          StartStop_ID,
+                                          # TravelDistance_Mi_New_Label,
+                                          TravelDistance_Mi_NewHvrs_Label,
+                                          # TravelDistance_Mi_New,
+                                          TravelDistance_Mi_NewHvrs
+                                         )
+                                  ) %>% 
+  mutate(# PctR_N = percent_rank(AllDays_NewTravelDist$TravelDistance_Mi_New),
          PctR_H = percent_rank(AllDays_NewTravelDist$TravelDistance_Mi_NewHvrs),
-         PctR_Round_N = round(PctR_N, 2),
+         # PctR_Round_N = round(PctR_N, 2),
          PctR_Round_H = round(PctR_H, 2)
         ) 
 
-# colnames(TravDistMiNew_Ntile)[1] <- "TravelDistance_Mi_New"
-# str(TravDistMiNew_Ntile)
-View(head(TravDistMiNew_Ntile, 500))
+# str(TravDistMiH_Ntile)
+# View(head(TravDistMiH_Ntile, 500))
 
-TravDistMiNew_Ntile_Rows <- nrow(TravDistMiNew_Ntile)
+TravDistMiH_Ntile_Rows <- nrow(TravDistMiH_Ntile)
 
-# View(tail(TravDistMiNew_Ntile, 500))
+# View(tail(TravDistMiH_Ntile, 500))
 
 
-TravDistMiNew_Pctiles <- group_by(TravDistMiNew_Ntile,
-                                  PctR_Round_H
-                                 ) %>% 
+TravDistMiH_Pctiles <- group_by(TravDistMiH_Ntile,
+                                PctR_Round_H
+                               ) %>% 
   summarise(
-    MinTDMiAtPctile_N = min(TravelDistance_Mi_New),
+    # MinTDMiAtPctile_N = min(TravelDistance_Mi_New),
     MinTDMiAtPctile_H = min(TravelDistance_Mi_NewHvrs),
-    CntsAtPctile_N = sum(!is.na(TravelDistance_Mi_New)),
+    # CntsAtPctile_N = sum(!is.na(TravelDistance_Mi_New)),
     CntsAtPctile_H = sum(!is.na(TravelDistance_Mi_NewHvrs)),
-    PctsAtPctile_N = CntsAtPctile_N / TravDistMiNew_Ntile_Rows,
-    PctsAtPctile_H = CntsAtPctile_H / TravDistMiNew_Ntile_Rows
+    # PctsAtPctile_N = CntsAtPctile_N / TravDistMiH_Ntile_Rows,
+    PctsAtPctile_H = CntsAtPctile_H / TravDistMiH_Ntile_Rows
   ) %>% 
-  mutate(CumSumPAtP_N = cumsum(PctsAtPctile_N),
+  mutate(# CumSumPAtP_N = cumsum(PctsAtPctile_N),
          CumSumPAtP_H = cumsum(PctsAtPctile_H)
         )
 
-View(TravDistMiNew_Pctiles)
+# View(TravDistMiH_Pctiles)
+
+```
+
+
+Join TravDistMiH_Pctiles, TravDistMiN_Pctiles, and TravDistMi_Pctiles.
+
+~11% of rides are still showing as less than 0.1 miles of TravelDistance_Mi_NewHvrs.
+```{r}
+
+rm(TravDistMiN_Ntile_Rows, TravDistMiH_Ntile_Rows, TravDistMiN_Ntile, TravDistMiH_Ntile)
+
+
+# View(TravDistMi_Pctiles)
+# View(TravDistMiN_Pctiles)
+# View(TravDistMiH_Pctiles)
+
+TravDistMi_Pctiles_All <- inner_join(x = TravDistMi_Pctiles,
+                                     y = TravDistMiN_Pctiles,
+                                     by = c("PctR_Round" = "PctR_Round_N")
+                                    ) %>% 
+  inner_join(y = TravDistMiH_Pctiles,
+             by = c("PctR_Round" = "PctR_Round_H")
+            ) %>% 
+  select(PctR_Round,
+         MinTravDistMiAtPctile,
+         MinTDMiAtPctile_N,
+         MinTDMiAtPctile_H,
+         CntsAtPctile,
+         CntsAtPctile_N,
+         CntsAtPctile_H,
+         PctsAtPctile,
+         PctsAtPctile_N,
+         PctsAtPctile_H,
+         CumSumPAtP,
+         CumSumPAtP_N,
+         CumSumPAtP_H
+         )
+
+# str(TravDistMi_Pctiles_All)
+
+rm(TravDistMi_Pctiles, TravDistMiN_Pctiles,TravDistMiH_Pctiles)
+
+
+View(TravDistMi_Pctiles_All)
+TravDistMi_Pctiles_All
 
 ```
 
@@ -1700,31 +1789,102 @@ Investigation of TravelDistance_Mi_New.
 Why are there still some small or zero TravelDistance_Mi_New values.
 ```{r}
 
-rm(TravDistMiNew_Ntile)
-rm(TravDistMiNew_Ntile_Rows)
-
-
 View(filter(AllDays_NewTravelDist,
-            !is.na(TravelDistance_Mi_New)
+            !is.na(TravelDistance_Mi_NewHvrs)
            ) %>% 
-       arrange(TravelDistance_Mi_New) %>% 
+       select(-TD_Mi_q2,
+              -TD_Mi_q98,
+              -TD_Mi_SS_q5,
+              -TD_Mi_SS_q95,
+              -TD_Mi_SSHG_q5,
+              -TD_Mi_SSHG_q95,
+              -TD_Mi_Mean,
+              -TD_Mi_Mean_F,
+              -TD_Mi_SS_Mean,
+              -TD_Mi_SS_Mean_F,
+              -TD_Mi_SSHG_Mean,
+              -TD_Mi_SSHG_Mean_F,
+              -TD_Mi_Med,
+              -TD_Mi_Med_F,
+              -TD_Mi_SS_Med,
+              -TD_Mi_SS_Med_F,
+              -TD_Mi_SSHG_Med,
+              -TD_Mi_SSHG_Med_F,
+              -TD_Mi_Cnt,
+              -TD_Mi_Cnt_F,
+              -TD_Mi_SS_Cnt,
+              -TD_Mi_SS_Cnt_F,
+              -TD_Mi_SSHG_Cnt,
+              -TD_Mi_SSHG_Cnt_F,
+              -TT_Sec_q2,
+              -TT_Sec_q98,
+              -TT_Sec_SS_q5,
+              -TT_Sec_SS_q95,
+              -TT_Sec_SSHG_q5,
+              -TT_Sec_SSHG_q95,
+              -TT_Sec_Mean,
+              -TT_Sec_Mean_F,
+              -TT_Sec_SS_Mean,
+              -TT_Sec_SS_Mean_F,
+              -TT_Sec_SSHG_Mean,
+              -TT_Sec_SSHG_Mean_F,
+              -TT_Sec_Med,
+              -TT_Sec_Med_F,
+              -TT_Sec_SS_Med,
+              -TT_Sec_SS_Med_F,
+              -TT_Sec_SSHG_Med,
+              -TT_Sec_SSHG_Med_F,
+              -TT_Sec_Cnt,
+              -TT_Sec_Cnt_F,
+              -TT_Sec_SS_Cnt,
+              -TT_Sec_SS_Cnt_F,
+              -TT_Sec_SSHG_Cnt,
+              -TT_Sec_SSHG_Cnt_F,
+              -TT_Hr_q2,
+              -TT_Hr_q98,
+              -TT_Hr_SS_q5,
+              -TT_Hr_SS_q95,
+              -TT_Hr_SSHG_q5,
+              -TT_Hr_SSHG_q95,
+              -TT_Hr_Mean,
+              -TT_Hr_Mean_F,
+              -TT_Hr_SS_Mean,
+              -TT_Hr_SS_Mean_F,
+              -TT_Hr_SSHG_Mean,
+              -TT_Hr_SSHG_Mean_F,
+              -TT_Hr_Med,
+              -TT_Hr_Med_F,
+              -TT_Hr_SS_Med,
+              -TT_Hr_SS_Med_F,
+              -TT_Hr_SSHG_Med,
+              -TT_Hr_SSHG_Med_F,
+              -TT_Hr_Cnt,
+              -TT_Hr_Cnt_F,
+              -TT_Hr_SS_Cnt,
+              -TT_Hr_SS_Cnt_F,
+              -TT_Hr_SSHG_Cnt,
+              -TT_Hr_SSHG_Cnt_F
+             ) %>% 
+       arrange(TravelDistance_Mi_NewHvrs) %>% 
        head(500)
     )
 
 View(filter(AllDays_NewTravelDist,
-            !is.na(TravelDistance_Mi_New)
+            !is.na(TravelDistance_Mi_NewHvrs)
            ) %>% 
-       arrange(TravelDistance_Mi_New) %>% 
-       tail(500)
+       select(!contains("q2")
+             ) %>% 
+       arrange(TravelDistance_Mi_NewHvrs) %>% 
+       tail(50)
     )
 
 
 
 
 filter(AllDays_NewTravelDist,
-       is.na(TravelDistance_Mi_New)
+       is.na(TravelDistance_Mi_NewHvrs)
        ) %>% 
-  group_by(TravelDistance_Mi_New_Label) %>% 
+  group_by(TravelDistance_Mi_NewHvrs_Label) %>% 
   summarise(CntNum = n()
             # ,
             # CntPct = n() / nrow(filter(AllDays_NewTravelDist,
