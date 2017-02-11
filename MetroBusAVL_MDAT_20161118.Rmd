@@ -1412,7 +1412,8 @@ AllDays_NewTravelDist <-
                          "TravelDistance_Mi_Hvrs",
                          as.character(TravelDistance_Mi_New_Label)
                         )
-                 )
+                 ),
+         SpeedAvg_Mph_NewHvrs = TravelDistance_Mi_NewHvrs / TravelTime_Hr
         )
 
 str(AllDays_NewTravelDist)
@@ -1786,187 +1787,129 @@ TravDistMi_Pctiles_All
 
 Investigation of TravelDistance_Mi_New.
 
-Why are there still some small or zero TravelDistance_Mi_New values.
+Why are there still some small or large TravelDistance_Mi_NewHvrs values.
 ```{r}
+
+# View(filter(AllDays_NewTravelDist,
+#             !is.na(TravelDistance_Mi_NewHvrs)
+#            ) %>% 
+#        select(-TD_Mi_q2,
+#               -TD_Mi_q98,
+#               -TD_Mi_SS_q5,
+#               -TD_Mi_SS_q95,
+#               -TD_Mi_SSHG_q5,
+#               -TD_Mi_SSHG_q95,
+#               -TD_Mi_Mean,
+#               -TD_Mi_Mean_F,
+#               -TD_Mi_SS_Mean,
+#               -TD_Mi_SS_Mean_F,
+#               -TD_Mi_SSHG_Mean,
+#               -TD_Mi_SSHG_Mean_F,
+#               -TD_Mi_Med,
+#               -TD_Mi_Med_F,
+#               -TD_Mi_SS_Med,
+#               -TD_Mi_SS_Med_F,
+#               -TD_Mi_SSHG_Med,
+#               -TD_Mi_SSHG_Med_F,
+#               -TD_Mi_Cnt,
+#               -TD_Mi_Cnt_F,
+#               -TD_Mi_SS_Cnt,
+#               -TD_Mi_SS_Cnt_F,
+#               -TD_Mi_SSHG_Cnt,
+#               -TD_Mi_SSHG_Cnt_F,
+#               -TT_Sec_q2,
+#               -TT_Sec_q98,
+#               -TT_Sec_SS_q5,
+#               -TT_Sec_SS_q95,
+#               -TT_Sec_SSHG_q5,
+#               -TT_Sec_SSHG_q95,
+#               -TT_Sec_Mean,
+#               -TT_Sec_Mean_F,
+#               -TT_Sec_SS_Mean,
+#               -TT_Sec_SS_Mean_F,
+#               -TT_Sec_SSHG_Mean,
+#               -TT_Sec_SSHG_Mean_F,
+#               -TT_Sec_Med,
+#               -TT_Sec_Med_F,
+#               -TT_Sec_SS_Med,
+#               -TT_Sec_SS_Med_F,
+#               -TT_Sec_SSHG_Med,
+#               -TT_Sec_SSHG_Med_F,
+#               -TT_Sec_Cnt,
+#               -TT_Sec_Cnt_F,
+#               -TT_Sec_SS_Cnt,
+#               -TT_Sec_SS_Cnt_F,
+#               -TT_Sec_SSHG_Cnt,
+#               -TT_Sec_SSHG_Cnt_F,
+#               -TT_Hr_q2,
+#               -TT_Hr_q98,
+#               -TT_Hr_SS_q5,
+#               -TT_Hr_SS_q95,
+#               -TT_Hr_SSHG_q5,
+#               -TT_Hr_SSHG_q95,
+#               -TT_Hr_Mean,
+#               -TT_Hr_Mean_F,
+#               -TT_Hr_SS_Mean,
+#               -TT_Hr_SS_Mean_F,
+#               -TT_Hr_SSHG_Mean,
+#               -TT_Hr_SSHG_Mean_F,
+#               -TT_Hr_Med,
+#               -TT_Hr_Med_F,
+#               -TT_Hr_SS_Med,
+#               -TT_Hr_SS_Med_F,
+#               -TT_Hr_SSHG_Med,
+#               -TT_Hr_SSHG_Med_F,
+#               -TT_Hr_Cnt,
+#               -TT_Hr_Cnt_F,
+#               -TT_Hr_SS_Cnt,
+#               -TT_Hr_SS_Cnt_F,
+#               -TT_Hr_SSHG_Cnt,
+#               -TT_Hr_SSHG_Cnt_F
+#              ) %>% 
+#        arrange(TravelDistance_Mi_NewHvrs) %>% 
+#        head(500)
+#     )
 
 View(filter(AllDays_NewTravelDist,
             !is.na(TravelDistance_Mi_NewHvrs)
            ) %>% 
-       select(-TD_Mi_q2,
-              -TD_Mi_q98,
-              -TD_Mi_SS_q5,
-              -TD_Mi_SS_q95,
-              -TD_Mi_SSHG_q5,
-              -TD_Mi_SSHG_q95,
-              -TD_Mi_Mean,
-              -TD_Mi_Mean_F,
-              -TD_Mi_SS_Mean,
-              -TD_Mi_SS_Mean_F,
-              -TD_Mi_SSHG_Mean,
-              -TD_Mi_SSHG_Mean_F,
-              -TD_Mi_Med,
-              -TD_Mi_Med_F,
-              -TD_Mi_SS_Med,
-              -TD_Mi_SS_Med_F,
-              -TD_Mi_SSHG_Med,
-              -TD_Mi_SSHG_Med_F,
-              -TD_Mi_Cnt,
-              -TD_Mi_Cnt_F,
-              -TD_Mi_SS_Cnt,
-              -TD_Mi_SS_Cnt_F,
-              -TD_Mi_SSHG_Cnt,
-              -TD_Mi_SSHG_Cnt_F,
-              -TT_Sec_q2,
-              -TT_Sec_q98,
-              -TT_Sec_SS_q5,
-              -TT_Sec_SS_q95,
-              -TT_Sec_SSHG_q5,
-              -TT_Sec_SSHG_q95,
-              -TT_Sec_Mean,
-              -TT_Sec_Mean_F,
-              -TT_Sec_SS_Mean,
-              -TT_Sec_SS_Mean_F,
-              -TT_Sec_SSHG_Mean,
-              -TT_Sec_SSHG_Mean_F,
-              -TT_Sec_Med,
-              -TT_Sec_Med_F,
-              -TT_Sec_SS_Med,
-              -TT_Sec_SS_Med_F,
-              -TT_Sec_SSHG_Med,
-              -TT_Sec_SSHG_Med_F,
-              -TT_Sec_Cnt,
-              -TT_Sec_Cnt_F,
-              -TT_Sec_SS_Cnt,
-              -TT_Sec_SS_Cnt_F,
-              -TT_Sec_SSHG_Cnt,
-              -TT_Sec_SSHG_Cnt_F,
-              -TT_Hr_q2,
-              -TT_Hr_q98,
-              -TT_Hr_SS_q5,
-              -TT_Hr_SS_q95,
-              -TT_Hr_SSHG_q5,
-              -TT_Hr_SSHG_q95,
-              -TT_Hr_Mean,
-              -TT_Hr_Mean_F,
-              -TT_Hr_SS_Mean,
-              -TT_Hr_SS_Mean_F,
-              -TT_Hr_SSHG_Mean,
-              -TT_Hr_SSHG_Mean_F,
-              -TT_Hr_Med,
-              -TT_Hr_Med_F,
-              -TT_Hr_SS_Med,
-              -TT_Hr_SS_Med_F,
-              -TT_Hr_SSHG_Med,
-              -TT_Hr_SSHG_Med_F,
-              -TT_Hr_Cnt,
-              -TT_Hr_Cnt_F,
-              -TT_Hr_SS_Cnt,
-              -TT_Hr_SS_Cnt_F,
-              -TT_Hr_SSHG_Cnt,
-              -TT_Hr_SSHG_Cnt_F
+       select(-matches("(q(2|5|(95)|(98)))|Mean|Med|Cnt")
              ) %>% 
-       arrange(TravelDistance_Mi_NewHvrs) %>% 
+       arrange(TravelDistance_Mi_NewHvrs) %>%
        head(500)
     )
 
+# examples of the smallest TravelDistance_Mi_NewHvrs values.
+View(filter(AllDays_NewTravelDist,
+            (RowNum_OG >= 1424440 & RowNum_OG <= 1424460) | # 1424450  --  direction change
+                (RowNum_OG >= 763292 & RowNum_OG <= 763312) | # 763302  --  direction change
+                (RowNum_OG >= 1679093 & RowNum_OG <= 1679113) | # 1679103  --  direction change
+                (RowNum_OG >= 2860918 & RowNum_OG <= 2860938) # 2860928  --  looks correct
+           ) %>% 
+       select(-matches("(q(2|5|(95)|(98)))|Mean|Med|Cnt")
+             )
+    )
+
+
 View(filter(AllDays_NewTravelDist,
             !is.na(TravelDistance_Mi_NewHvrs)
            ) %>% 
-       select(!contains("q2")
+       select(-matches("(q(2|5|(95)|(98)))|Mean|Med|Cnt")
              ) %>% 
-       arrange(TravelDistance_Mi_NewHvrs) %>% 
-       tail(50)
+       arrange(desc(TravelDistance_Mi_NewHvrs)
+              ) %>%
+       head(500)
     )
 
-
-
-
-filter(AllDays_NewTravelDist,
-       is.na(TravelDistance_Mi_NewHvrs)
-       ) %>% 
-  group_by(TravelDistance_Mi_NewHvrs_Label) %>% 
-  summarise(CntNum = n()
-            # ,
-            # CntPct = n() / nrow(filter(AllDays_NewTravelDist,
-            #                            is.na(TravelDistance_Mi_New)
-            #                           )
-            #                    )
-           )
-
-      
-      
-# examples of TravelDistance_Mi_New values that are zero.
+# examples of the largest TravelDistance_Mi_NewHvrs values.
 View(filter(AllDays_NewTravelDist,
-            (RowNum_OG >= 1652 & RowNum_OG <= 1672) | # 1662  --  1st trip of a new route & no change in lat lon
-                (RowNum_OG >= 92378 & RowNum_OG <= 92398) | # 92388  --  odometer always at zero & no change in lat lon
-                (RowNum_OG >= 1447462 & RowNum_OG <= 1447482) | # 1447472  --  no change in odometer & no change in lat lon
-                (RowNum_OG >= 1485845 & RowNum_OG <= 1485865) # 1485855  --  no change in odometer & no change in lat lon
-           )
-    )
-
-
-View(filter(AllDays_NewTravelDist,
-            TravelDistance_Mi_New > 0 &
-              TravelDistance_Mi_New < 0.0984848485 &  # 0.0984848485 is an MDAT guess at a distance between stops
-              TravelDistance_Ft == 0  # meaning TravelDistance_Mi_New is based on Haversine distance (lat long values)
+            (RowNum_OG >= 1092000 & RowNum_OG <= 1092050) | # 1092030  --  direction change
+                (RowNum_OG >= 1609460 & RowNum_OG <= 1609480) | # 1609470  -- direction change 
+                (RowNum_OG >= 508904 & RowNum_OG <= 508924) | # 508914  --  direction change & original StopID was bad
+                (RowNum_OG >= 2476345 & RowNum_OG <= 2476365) # 2476355  --  direction change
            ) %>% 
-       arrange(TravelDistance_Mi_New)
-    )
-
-# examples of TravelDistance_Mi_New values that are very small. All are examples of no change in the odometer, and extremely small changes in lat lon.
-View(filter(AllDays_NewTravelDist,
-            (RowNum_OG >= 921036 & RowNum_OG <= 921056) | # 921046  --  
-                (RowNum_OG >= 2281235 & RowNum_OG <= 2281255) | # 2281245  --  
-                (RowNum_OG >= 2956528 & RowNum_OG <= 2956548) | # 2956538  --  
-                (RowNum_OG >= 2909007 & RowNum_OG <= 2909027) # 2909017  --  
-           )
-    )
-
-
-View(filter(AllDays_NewTravelDist,
-            TravelDistance_Mi_New > 0 &
-              TravelDistance_Mi_New < 0.0984848485 &  # 0.0984848485 is an MDAT guess at a distance between stops
-              TravelDistance_Ft != 0  # meaning TravelDistance_Mi_New is based on actual odometer readings
-           ) %>% 
-       arrange(TravelDistance_Mi_New)
-    )
-
-# examples of TravelDistance_Mi_New values that are very small. All are examples of extremely small changes in the odometer.
-View(filter(AllDays_NewTravelDist,
-            (RowNum_OG >= 1681 & RowNum_OG <= 1701) | # 1691  --  
-                (RowNum_OG >= 2131 & RowNum_OG <= 2151) | # 2141  --  
-                (RowNum_OG >= 154784 & RowNum_OG <= 154804) | # 154794  --  
-                (RowNum_OG >= 2267431 & RowNum_OG <= 2267451) # 2267441  --  
-           )
-    )
-
-```
-
-
-Explore instances where TravelDistance_Mi is NA.
-```{r}
-
-View(group_by(AllDays_NewOrder,
-              StartStop_ID
-             ) %>% 
-       summarise(Cnts = sum(is.na(TravelTime_Sec)
-                           )
-                ) %>% 
-       arrange(desc(Cnts)
-              )
-    )
-
-View(filter(AllDays_NewOrder,
-            StartStop_ID == "5004635--5004758"
-           ) %>% 
-       select(TravelTime_Sec,
-              TT_Sec_SS_Mean,
-              TT_Sec_SSHG_Mean,
-              TT_Sec_SS_Med,
-              TT_Sec_SSHG_Med,
-              TT_Sec_SS_Cnt,
-              TT_Sec_SSHG_Cnt
-              )
+       select(-matches("(q(2|5|(95)|(98)))|Mean|Med|Cnt")
+             )
     )
 
 ```
