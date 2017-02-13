@@ -94,6 +94,9 @@ Updating variable types.
 Then, sorting the data and adding a RowNumber (to be used for identifying rows later in the analyses.)
 ```{r}
 
+rm(i)
+
+
 AllDays$group <- factor(AllDays$group)
 AllDays$Route_Direction <- factor(AllDays$Route_Direction)
 AllDays$Event_Time <- as.POSIXct(AllDays$Event_Time, format = "%m-%d-%y %I:%M:%S %p")
@@ -780,7 +783,8 @@ AllDays_BusDayRoute <- group_by(Stats_StSt_HrGrp,
                                 Event_Time_Date,
                                 Route
                                ) %>% 
-  mutate(RouteAlt_Lag1 = lag(RouteAlt)  # used in future analyses to identify Route changes
+  mutate(Route_Lag1 = lag(Route),  # used in future analyses to identify Route changes
+         RouteAlt_Lag1 = lag(RouteAlt)  # used in future analyses to identify RouteAlt (direction) changes
          # Odometer_Distance_Lag1 = lag(Odometer_Distance),
          # 
          # # accounting for potential negative distances
@@ -820,7 +824,16 @@ Calculating a variable to know if the RouteAlt changed. Could be useful in helpi
 # rm(Stats_StSt_HrGrp)
 
 AllDays_DirChange <- AllDays_BusDayRoute %>% 
-  mutate(DirChange = ifelse(RouteAlt == RouteAlt_Lag1,
+  mutate(RteChange = ifelse(Route == Route_Lag1,
+                            "Same",
+                            "Change"
+                           ),
+         RteChange2 = factor(ifelse(is.na(RteChange),
+                                    "Change",
+                                    RteChange
+                                   )
+                            ),
+         DirChange = ifelse(RouteAlt == RouteAlt_Lag1,
                             "Same",
                             "Change"
                            ),
@@ -847,6 +860,7 @@ AllDays_NewOrder <-  select(AllDays_DirChange,
                             BusDay_EventNum,
                             Bus_ID,
                             Route,
+                            RteChange2,
                             RouteAlt,
                             # RouteAlt_Lag1,
                             DirChange2,
@@ -1920,19 +1934,20 @@ Investigation of TravelTime_Hr.
 View(TravDistMi_Pctiles): 98% of TravelTime_Hr are between 7 seconds and 464 seconds (~8 minutes).
 ```{r}
 
-TravTimeHr_Ntile <- as.data.frame(AllDays_NewTravelDist$TravelTime_Hr) %>% 
-  mutate(Pctile = ntile(AllDays_NewTravelDist$TravelTime_Hr, 100),
-         MinR = min_rank(AllDays_NewTravelDist$TravelTime_Hr),
+TravTimeHr_Ntile <- select(AllDays_NewTravelDist,
+                           TravelTime_Hr
+                          ) %>% 
+  mutate(# Pctile = ntile(AllDays_NewTravelDist$TravelTime_Hr, 100),
+         # MinR = min_rank(AllDays_NewTravelDist$TravelTime_Hr),
          PctR = percent_rank(AllDays_NewTravelDist$TravelTime_Hr),
          PctR_Round = round(PctR, 2)
         ) 
 
-colnames(TravTimeHr_Ntile)[1] <- "TravelTime_Hr"
-str(TravTimeHr_Ntile)
+# str(TravTimeHr_Ntile)
 
 TravTimeHr_Ntile_Rows <- nrow(TravTimeHr_Ntile)
 
-View(tail(TravTimeHr_Ntile, 500))
+# View(tail(TravTimeHr_Ntile, 500))
 
 
 TravTimeHr_Pctiles <- group_by(TravTimeHr_Ntile,
@@ -1947,7 +1962,10 @@ TravTimeHr_Pctiles <- group_by(TravTimeHr_Ntile,
          MinTravTimeSecAtPctile = MinTravTimeHrAtPctile * 3600
         )
 
+rm(TravTimeHr_Ntile_Rows)
+rm(TravTimeHr_Ntile)
 View(TravTimeHr_Pctiles)
+TravTimeHr_Pctiles
 
 ```
 
@@ -1957,7 +1975,9 @@ Investigation of TravelTime_Hr.
 Histogram of TravelTime_Sec.
 ```{r}
 
-TravTime_Sec_HistDen <- ggplot(filter(AllDays_NewTravelDist,
+TravTime_Sec_HistDen <- ggplot(filter(select(AllDays_NewTravelDist,
+                                             TravelTime_Sec
+                                            ),
                                       !is.na(TravelTime_Sec)
                                      ),
                                aes(x = TravelTime_Sec,
@@ -1986,50 +2006,92 @@ TravTime_Sec_HistDen
 ```
 
 
-Investigation of TravelTime_Hr.
+Investigation of TravelTime_Sec.
 
-Looking at odd TravelTime_Sec values.
+TravelTime_Sec values are NA.
 ```{r}
 
-View(filter(AllDays_NewTravelDist,
-            is.na(TravelTime_Sec) & 
-              !is.na(Odometer_Distance_Lag1)
-           )
+summary(AllDays_NewTravelDist$TravelTime_Sec)
+
+
+View(select(AllDays_NewTravelDist,
+            -matches("(q(2|5|(95)|(98)))|Mean|Med|Cnt")
+           ) %>% 
+       filter(is.na(TravelTime_Sec) &
+                BusDay_EventNum != 1  # TravelTime purposefully not calculated here
+             )
     )
 
-
-# examples of TravelTime_Sec values that are NA. These are NA because the Event_Time & Departure_Time readings are not accurate (i.e., the previous Departure_Time is BEFORE the current Event_Time).
+# examples of TravelTime_Sec values that are NA. These are NA because the Event_Time & Departure_Time readings are not accurate (i.e., the previous Departure_Time is BEFORE or EQUAL TO the current Event_Time).
 View(filter(AllDays_NewTravelDist,
             (RowNum_OG >= 90809 & RowNum_OG <= 90829) | # 90819
                 (RowNum_OG >= 90881 & RowNum_OG <= 90901) | # 90891
-                (RowNum_OG >= 994813 & RowNum_OG <= 994833) | # 994823
-                (RowNum_OG >= 2391342 & RowNum_OG <= 2391362) # 2391352
-           )
-    )
-
-
-View(filter(AllDays_NewTravelDist,
-            TravelTime_Sec == 0
-           )
-    )
-
-# examples where TravelTime_Sec is zero (i.e., previous Departure_Time equals the current Event_Time).
-View(filter(AllDays_NewTravelDist,
-            (RowNum_OG >= 175725 & RowNum_OG <= 175745) | # 175735
-                (RowNum_OG >= 401127 & RowNum_OG <= 401147) | # 401137
-                (RowNum_OG >= 2446820 & RowNum_OG <= 2446840) | # 2446830
-                (RowNum_OG >= 2545036 & RowNum_OG <= 2545056) # 2545046
-           )
-    )
-
-
-View(filter(AllDays_NewTravelDist,
-            TravelTime_Sec > 0 &
-              TravelTime_Sec < 10
+                (RowNum_OG >= 2597066 & RowNum_OG <= 2597086) | # 2597076
+                (RowNum_OG >= 2613305 & RowNum_OG <= 2613325) # 2613315
            ) %>% 
-       arrange(desc(SpeedAvg_Mph)
-              )
+       select(-matches("(q(2|5|(95)|(98)))|Mean|Med|Cnt"))
     )
+
+```
+
+
+Investigation of TravelTime_Sec.
+
+TravelTime_Sec values are extremely small.
+```{r}
+
+View(select(AllDays_NewTravelDist,
+            -matches("(q(2|5|(95)|(98)))|Mean|Med|Cnt")
+           ) %>% 
+       filter(!is.na(TravelTime_Sec)
+             ) %>% 
+       arrange(TravelTime_Sec,
+               desc(SpeedAvg_Mph_NewHvrs)
+              ) %>%
+       head(500)
+    )
+
+# examples where TravelTime_Sec is small (1 sec) and SpeedAvg_Mph_NewHvrs is large.
+View(select(AllDays_NewTravelDist,
+            -matches("(q(2|5|(95)|(98)))|Mean|Med|Cnt")
+           ) %>% 
+       filter((RowNum_OG >= 2217353 & RowNum_OG <= 2217373) | # 2217363
+                (RowNum_OG >= 3090321 & RowNum_OG <= 3090341) | # 3090331
+                (RowNum_OG >= 80764 & RowNum_OG <= 80784) | # 80774
+                (RowNum_OG >= 33840 & RowNum_OG <= 33860) # 33850
+           )
+    )
+
+```
+
+
+Investigation of TravelTime_Sec.
+
+TravelTime_Sec values are extremely large.
+```{r}
+
+View(select(AllDays_NewTravelDist,
+            -matches("(q(2|5|(95)|(98)))|Mean|Med|Cnt")
+           ) %>% 
+       filter(!is.na(TravelTime_Sec)
+             ) %>% 
+       arrange(desc(TravelTime_Sec),
+               SpeedAvg_Mph_NewHvrs
+              ) %>%
+       head(500)
+    )
+
+# examples where TravelTime_Sec is large and SpeedAvg_Mph_NewHvrs is small.
+View(select(AllDays_NewTravelDist,
+            -matches("(q(2|5|(95)|(98)))|Mean|Med|Cnt")
+           ) %>% 
+       filter((RowNum_OG >= 1007703 & RowNum_OG <= 1007723) | # 1007713
+                (RowNum_OG >= 2373564 & RowNum_OG <= 2373584) | # 2373574
+                (RowNum_OG >= 864379 & RowNum_OG <= 864399) | # 864389
+                (RowNum_OG >= 2570060 & RowNum_OG <= 2570080) # 2570070
+           )
+    )
+
 
 
 # examples where TravelTime_Sec is unusually small (with TravelDistance_Mi values that are large).
@@ -2065,6 +2127,7 @@ View(filter(AllDays_NewTravelDist,
                 (RowNum_OG >= 869600 & RowNum_OG <= 869620) # 869610
            )
     )
+
 
 ```
 
@@ -2103,7 +2166,6 @@ Speed_Pctiles <- group_by(Speed_Ntile,
 View(Speed_Pctiles)
 
 ```
-
 
 Investigation of SpeedAvg_Mph2.
 
