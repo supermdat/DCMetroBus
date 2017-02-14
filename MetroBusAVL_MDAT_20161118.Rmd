@@ -472,6 +472,9 @@ AllDays_BusDay <- group_by(AllDays_AddVars,
                           ) %>% 
   mutate(BusDay_EventNum = row_number(),  # used to identify Bus movements on a particular date
          
+         Route_Lag1 = lag(Route),  # used in future analyses to identify Route changes
+         RouteAlt_Lag1 = lag(RouteAlt),  # used in future analyses to identify RouteAlt (direction) changes
+         
          Odometer_Distance_Lag1 = lag(Odometer_Distance),
          
          Latitude_L1 = lag(Latitude),
@@ -778,40 +781,40 @@ Creating a BusEventRoute row number, and a RouteAlt_Lag1 indicator for future id
 # rm(Quantiles_SSHG_dt)
 # rm(Stats_StSt)
 
-AllDays_BusDayRoute <- group_by(Stats_StSt_HrGrp,
-                                Bus_ID,
-                                Event_Time_Date,
-                                Route
-                               ) %>% 
-  mutate(Route_Lag1 = lag(Route),  # used in future analyses to identify Route changes
-         RouteAlt_Lag1 = lag(RouteAlt)  # used in future analyses to identify RouteAlt (direction) changes
-         # Odometer_Distance_Lag1 = lag(Odometer_Distance),
-         # 
-         # # accounting for potential negative distances
-         # TravelDistance_Ft = ifelse(Odometer_Distance >= Odometer_Distance_Lag1,
-         #                            Odometer_Distance - Odometer_Distance_Lag1,
-         #                            NA
-         #                           ),
-         # TravelDistance_Mi = TravelDistance_Ft / 5280, #5,280 feet in 1 mile
-         # 
-         # # accounting for potential negative times
-         # TravelTime_Sec = as.numeric(ifelse(Event_Time >= lag(Departure_Time),
-         #                                    Event_Time - lag(Departure_Time),
-         #                                    NA
-         #                                   )
-         #                            ),
-         # TravelTime_Hr = TravelTime_Sec / 3600, # 3,600 seconds in 1 hour
-         # 
-         # # accounting for potential negative or zero travel times
-         # SpeedAvg_Mph = ifelse(TravelTime_Hr > 0,
-         #                       TravelDistance_Mi / TravelTime_Hr,
-         #                       NA
-         #                      )
-        ) %>% 
-  data.frame()
-
-rm(Stats_StSt_HrGrp)
-str(AllDays_BusDayRoute)
+# AllDays_BusDayRoute <- group_by(Stats_StSt_HrGrp,
+#                                 Bus_ID,
+#                                 Event_Time_Date,
+#                                 Route
+#                                ) %>% 
+#   mutate(RouteAlt_Lag2 = lag(RouteAlt)  # used in future analyses to identify RouteAlt (direction) changes
+#          
+#          # Odometer_Distance_Lag1 = lag(Odometer_Distance),
+#          # 
+#          # # accounting for potential negative distances
+#          # TravelDistance_Ft = ifelse(Odometer_Distance >= Odometer_Distance_Lag1,
+#          #                            Odometer_Distance - Odometer_Distance_Lag1,
+#          #                            NA
+#          #                           ),
+#          # TravelDistance_Mi = TravelDistance_Ft / 5280, #5,280 feet in 1 mile
+#          # 
+#          # # accounting for potential negative times
+#          # TravelTime_Sec = as.numeric(ifelse(Event_Time >= lag(Departure_Time),
+#          #                                    Event_Time - lag(Departure_Time),
+#          #                                    NA
+#          #                                   )
+#          #                            ),
+#          # TravelTime_Hr = TravelTime_Sec / 3600, # 3,600 seconds in 1 hour
+#          # 
+#          # # accounting for potential negative or zero travel times
+#          # SpeedAvg_Mph = ifelse(TravelTime_Hr > 0,
+#          #                       TravelDistance_Mi / TravelTime_Hr,
+#          #                       NA
+#          #                      )
+#         ) %>% 
+#   data.frame()
+# 
+# rm(Stats_StSt_HrGrp)
+# str(AllDays_BusDayRoute)
 
 ```
 
@@ -823,7 +826,7 @@ Calculating a variable to know if the RouteAlt changed. Could be useful in helpi
 
 # rm(Stats_StSt_HrGrp)
 
-AllDays_DirChange <- AllDays_BusDayRoute %>% 
+AllDays_DirChange <- Stats_StSt_HrGrp %>%  # AllDays_BusDayRoute %>% 
   mutate(RteChange = ifelse(Route == Route_Lag1,
                             "Same",
                             "Change"
@@ -844,8 +847,16 @@ AllDays_DirChange <- AllDays_BusDayRoute %>%
                             )
         )
 
-rm(AllDays_BusDayRoute)
+# rm(AllDays_BusDayRoute)
+rm(Stats_StSt_HrGrp)
 str(AllDays_DirChange)
+
+View(filter(AllDays_DirChange,
+            between(RowNum_OG, 2570060, 2570080)
+           ) %>% 
+       select(-matches("(q(2|5|(95)|(98)))|Mean|Med|Cnt")
+             )
+    )
 
 ```
 
@@ -1292,8 +1303,7 @@ Investigation of TravelDistance_Mi.
 Looking at specific buses and StartStop_ID.
 ```{r}
 
-rm(ExtremeTravDist)
-rm(ExtremeTravDist_Spread)
+rm(ExtremeTravDist, ExtremeTravDist_Spread)
 
 View(arrange(group_by(AllDays_NewOrder,
                       Bus_ID
@@ -2093,7 +2103,64 @@ View(select(AllDays_NewTravelDist,
     )
 
 
+```
 
+
+Investigation of TravelTime_Sec.
+
+Are large TravelTime_Sec values related to RouteChanges.
+```{r}
+
+TTLargeRteChng <- select(AllDays_NewTravelDist,
+                         -matches("(q(2|5|(95)|(98)))|Mean|Med|Cnt")
+                        ) %>% 
+  mutate(TT_Out = factor(ifelse(TravelTime_Sec > 464,  # this is the 99th percentile
+                                "Outlier",
+                                "Normal"
+                               )
+                        )
+        )
+
+# str(TTLargeRteChng)
+
+
+TTLargeRteChng_Cnts <- group_by(TTLargeRteChng,
+                                RteChange2,
+                                TT_Out
+                               ) %>% 
+  summarise(Cnts = n()
+           )
+
+TTLargeRteChng_Spread <- as.data.frame(spread(TTLargeRteChng_Cnts,
+                                              TT_Out,
+                                              Cnts
+                                             )
+                                      ) %>%
+  select(-RteChange2)
+
+row.names(TTLargeRteChng_Spread) <- c("Change", "Same")
+# str(TTLargeRteChng_Spread)
+
+
+# When the Bus involves a Route "change", there is almost twice as likely to be a case of an outlier TravelTime_Sec value.
+TTLargeRteChng_Spread
+prop.table(as.table(as.matrix(TTLargeRteChng_Spread)
+                   ),
+           1
+          )
+
+prop.table(as.table(as.matrix(TTLargeRteChng_Spread)
+                   ),
+           2
+          )
+
+# rm(TTLargeRteChng, TTLargeRteChng_Spread)
+         
+
+
+
+         
+         
 # examples where TravelTime_Sec is unusually small (with TravelDistance_Mi values that are large).
 View(filter(AllDays_NewTravelDist,
             (RowNum_OG >= 1042228 & RowNum_OG <= 1042248) | # 1042238
@@ -2127,7 +2194,6 @@ View(filter(AllDays_NewTravelDist,
                 (RowNum_OG >= 869600 & RowNum_OG <= 869620) # 869610
            )
     )
-
 
 ```
 
