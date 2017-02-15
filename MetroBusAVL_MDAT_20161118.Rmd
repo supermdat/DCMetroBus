@@ -2157,7 +2157,135 @@ prop.table(as.table(as.matrix(TTLargeRteChng_Spread)
 # rm(TTLargeRteChng, TTLargeRteChng_Spread)
          
 
+View(filter(TTLargeRteChng,
+            !is.na(TravelTime_Sec) &
+              RteChange2 == "Same"
+           ) %>% 
+       arrange(desc(TravelTime_Sec),
+               SpeedAvg_Mph_NewHvrs
+              ) %>%
+       head(500)
+    )
 
+
+# examples where TravelTime_Sec is large and SpeedAvg_Mph_NewHvrs is small.
+View(filter(TTLargeRteChng,
+            (RowNum_OG >= 2250290 & RowNum_OG <= 2250310) | # 2250300
+              (RowNum_OG >= 867717 & RowNum_OG <= 867737) | # 867727
+              (RowNum_OG >= 864379 & RowNum_OG <= 864399) | # 864389
+              (RowNum_OG >= 808395 & RowNum_OG <= 808415) # 808405
+           )
+    )
+
+```
+
+
+Investigation of TravelTime_Sec.
+
+If TravelTime_Sec is below the 5th percentile for that StartStop_ID, or if TravelTime_Sec is above the 95th percentile for that StartStop_ID,  consider this an outlier.  In this case, replace the value with the mean for that StartStop_ID and HourGroup (TT_Sec_SSHG_Mean_F), or if there are not enough values at the HourGroup level, replace it with the mean for that StartStop_ID.
+```{r}
+
+rm(TTLargeRteChng, TTLargeRteChng_Cnts, TTLargeRteChng_Spread)
+
+
+NewTravTime <- mutate(AllDays_NewTravelDist,
+                      TT_Sec_New = ifelse(!is.na(TravelTime_Sec) &
+                                            (TravelTime_Sec < TT_Sec_SSHG_q5 |
+                                               TravelTime_Sec > TT_Sec_SSHG_q95
+                                            ) &
+                                            TT_Sec_SSHG_Cnt_F >= 20,
+                                          TT_Sec_SSHG_Mean_F,
+                                   ifelse(!is.na(TravelTime_Sec) &
+                                            (TravelTime_Sec < TT_Sec_SSHG_q5 |
+                                               TravelTime_Sec > TT_Sec_SSHG_q95
+                                            ) &
+                                            TT_Sec_SSHG_Cnt_F < 20 &
+                                            TT_Sec_SS_Cnt_F >= 20,
+                                          TT_Sec_SS_Mean_F,
+                                   ifelse(!is.na(TravelTime_Sec) &
+                                            (TravelTime_Sec < TT_Sec_SSHG_q5 |
+                                               TravelTime_Sec > TT_Sec_SSHG_q95
+                                            ) &
+                                            TT_Sec_SS_Cnt_F < 20 &
+                                            TT_Sec_SS_Cnt >= 20,
+                                          TT_Sec_SS_Mean,
+                                          TravelTime_Sec
+                                         ))),
+                      
+                      TT_Sec_New_Label = 
+           factor(ifelse(!is.na(TravelTime_Sec) &
+                           (TravelTime_Sec < TT_Sec_SSHG_q5 |
+                              TravelTime_Sec > TT_Sec_SSHG_q95
+                           ) &
+                           TT_Sec_SSHG_Cnt_F >= 20,
+                         "TT_Sec_SSHG_Mean_F",
+                  ifelse(!is.na(TravelTime_Sec) &
+                           (TravelTime_Sec < TT_Sec_SSHG_q5 |
+                              TravelTime_Sec > TT_Sec_SSHG_q95
+                           ) &
+                           TT_Sec_SSHG_Cnt_F < 20 &
+                           TT_Sec_SS_Cnt_F >= 20,
+                         "TT_Sec_SS_Mean_F",
+                  ifelse(!is.na(TravelTime_Sec) &
+                           (TravelTime_Sec < TT_Sec_SSHG_q5 |
+                              TravelTime_Sec > TT_Sec_SSHG_q95
+                            ) &
+                           TT_Sec_SS_Cnt_F < 20 &
+                           TT_Sec_SS_Cnt >= 20,
+                         "TT_Sec_SS_Mean",
+                         "TravelTime_Sec"
+                        )))
+                 ),
+                  
+                  TT_Hr_New = TT_Sec_New / (60 * 60)
+           )
+
+
+dim(AllDays_NewTravelDist)
+dim(NewTravTime)
+# rm(AllDays_NewTravelDist)
+str(select(NewTravTime,
+           TravelTime_Sec,
+           TT_Sec_New,
+           TT_Sec_New_Label,
+           TT_Hr_New
+          )
+   )
+
+
+summary(select(NewTravTime,
+               TravelTime_Sec,
+               TT_Sec_New,
+               TT_Sec_New_Label,
+               TT_Hr_New
+              )
+       )
+
+```
+
+
+Investigating TravelTime_Sec.
+```{r}
+
+# examples where TravelTime_Sec is small (1 sec) and SpeedAvg_Mph_NewHvrs is large.
+View(select(NewTravTime,
+            # -matches("(q(2|5|(95)|(98)))|Mean|Med|Cnt")
+            -(TD_Mi_q2:TD_Mi_SSHG_Cnt_F),
+            -(TT_Hr_q2:TT_Hr_SSHG_Cnt_F)
+           ) %>% 
+       filter((RowNum_OG >= 2217353 & RowNum_OG <= 2217373) | # 2217363
+                (RowNum_OG >= 3090321 & RowNum_OG <= 3090341) | # 3090331
+                (RowNum_OG >= 80764 & RowNum_OG <= 80784) | # 80774
+                (RowNum_OG >= 33840 & RowNum_OG <= 33860) # 33850
+           )
+    )
+
+```
+
+
+
+
+```{r}
 
          
          
@@ -2196,7 +2324,6 @@ View(filter(AllDays_NewTravelDist,
     )
 
 ```
-
 
 Investigation of SpeedAvg_Mph2
 
