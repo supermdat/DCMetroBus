@@ -2209,8 +2209,16 @@ NewTravTime <- mutate(AllDays_NewTravelDist,
                                             TT_Sec_SS_Cnt_F < 20 &
                                             TT_Sec_SS_Cnt >= 20,
                                           TT_Sec_SS_Mean,
+                                   ifelse(!is.na(TravelTime_Sec) &
+                                            (TravelTime_Sec < TT_Sec_SSHG_q5 |
+                                               TravelTime_Sec > TT_Sec_SSHG_q95
+                                            ) &
+                                            TT_Sec_SS_Cnt_F < 20 &
+                                            TT_Sec_SS_Cnt < 20 &
+                                            RteChange2 == "Change",
+                                          NA,
                                           TravelTime_Sec
-                                         ))),
+                                         )))),
                       
                       TT_Sec_New_Label = 
            factor(ifelse(!is.na(TravelTime_Sec) &
@@ -2233,8 +2241,16 @@ NewTravTime <- mutate(AllDays_NewTravelDist,
                            TT_Sec_SS_Cnt_F < 20 &
                            TT_Sec_SS_Cnt >= 20,
                          "TT_Sec_SS_Mean",
+                  ifelse(!is.na(TravelTime_Sec) &
+                           (TravelTime_Sec < TT_Sec_SSHG_q5 |
+                              TravelTime_Sec > TT_Sec_SSHG_q95
+                           ) &
+                           TT_Sec_SS_Cnt_F < 20 &
+                           TT_Sec_SS_Cnt < 20 &
+                           RteChange2 == "Change",
+                         NA,
                          "TravelTime_Sec"
-                        )))
+                        ))))
                  ),
                   
                   TT_Hr_New = TT_Sec_New / (60 * 60)
@@ -2244,6 +2260,12 @@ NewTravTime <- mutate(AllDays_NewTravelDist,
 dim(AllDays_NewTravelDist)
 dim(NewTravTime)
 # rm(AllDays_NewTravelDist)
+
+summary(select(NewTravTime,
+           -matches("(q(2|5|(95)|(98)))|Mean|Med|Cnt")
+          )
+   )
+
 str(select(NewTravTime,
            TravelTime_Sec,
            TT_Sec_New,
@@ -2264,8 +2286,97 @@ summary(select(NewTravTime,
 ```
 
 
+
+```{r}
+
+View(head(select(NewTravTime,
+                 -matches("(q(2|5|(95)|(98)))|Mean|Med|Cnt")
+                )
+         )
+    )
+
+X2 <- select(NewTravTime,
+             -matches("(q(2|5|(95)|(98)))|Mean|Med|Cnt")
+            ) %>% 
+  filter(Route == "X2")
+
+View(head(arrange(X2,
+                  Bus_ID,
+                  Event_Time
+                 ),
+          500
+         )
+    )
+
+X2_ByStop <- group_by(X2,
+                      StopID_Clean
+                     ) %>% 
+  arrange(StopID_Clean,
+          Event_Time) %>% 
+  mutate(Event_Time_L1 = lag(Event_Time),
+         TimeToEvent_Sec = as.numeric(Event_Time - Event_Time_L1),
+         TimeToEvent_Min = TimeToEvent_Sec / 60
+        )
+
+View(head(X2_ByStop, 500))
+
+
+# Count_Values is needed to display the medians on the box plots
+Count_Values <- ddply(as.data.frame(X2_ByStop),
+                      .(Event_Time_HrGroup),
+                      summarise,
+                      Value_Counts = median(TimeToEvent_Min, na.rm = TRUE)
+                     )
+
+DeltTime_BoxPlot <- ggplot(select(as.data.frame(X2_ByStop),
+                                  TimeToEvent_Min,
+                                  Event_Time_HrGroup
+                                 ),
+                           aes(factor(Event_Time_HrGroup),
+                               TimeToEvent_Min,
+                               fill = factor(Event_Time_HrGroup)
+                              )
+                          ) + 
+  geom_boxplot(outlier.colour="red", notch=TRUE, na.rm = TRUE) +
+  geom_text(data = Count_Values,
+            aes(y = Value_Counts,
+                label = format(round(Value_Counts, digits = 1),
+                               nsmall = 1
+                              )
+               ),
+            size = 3,
+            vjust = -0.5
+           ) +
+  theme(legend.position="none", axis.text.x = element_text(angle=45)) +
+  coord_cartesian(# xlim = c(0, 180),
+                  ylim = c(0, 120)
+                 ) +
+  labs(title = "Time Between Busses (at the same stop, by Hour Group)",
+       x = "Hour Group",
+       y = "Time Between Busses (min)"
+      )
+
+DeltTime_BoxPlot
+
+
+
+
+```
+
+
 Investigating TravelTime_Sec.
 ```{r}
+
+View(filter(TTLargeRteChng,
+            !is.na(TravelTime_Sec) &
+              RteChange2 == "Same"
+           ) %>% 
+       arrange(desc(TravelTime_Sec),
+               SpeedAvg_Mph_NewHvrs
+              ) %>%
+       head(500)
+    )
+
 
 # examples where TravelTime_Sec is small (1 sec) and SpeedAvg_Mph_NewHvrs is large.
 View(select(NewTravTime,
@@ -2280,6 +2391,19 @@ View(select(NewTravTime,
            )
     )
 
+
+
+
+
+
+# examples where TravelTime_Sec is large and SpeedAvg_Mph_NewHvrs is small.
+View(filter(TTLargeRteChng,
+            (RowNum_OG >= 2250290 & RowNum_OG <= 2250310) | # 2250300
+              (RowNum_OG >= 867717 & RowNum_OG <= 867737) | # 867727
+              (RowNum_OG >= 864379 & RowNum_OG <= 864399) | # 864389
+              (RowNum_OG >= 808395 & RowNum_OG <= 808415) # 808405
+           )
+    )
 ```
 
 
