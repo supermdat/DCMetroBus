@@ -266,26 +266,69 @@ url_3 <- "&radius=0&username="
 username <- "supermdat"
 
 
+View(filter(LL_Stats,
+            RowNum == (1950 + 1002)
+           )
+    )
+
 ##### Store everything in multiple lists
 
-pages <- list()
+# pages <- list()
+# pages2 <- list()
+# pages3 <- list()
+# pages4 <- list()
+# pages5 <- list()
+pages6 <- list()
+# pages7 <- list()
+# pages8 <- list()
+# pages9 <- list()
+# pages10 <- list()
+# pages11 <- list()
+
+# max_row_per_hr <- 1000
+# need to group in bunches as http://api.geonames.org limits pulls to 2000 per hour
+
+
 
 system.time(
-for(i in 1:nrow(LL_Stats)
+#   for(j in 0:5){
+#   for(k in ((max_row_per_hr*j) + 1):(max_row_per_hr*(j+1)
+#                                     )
+#      ){
+#     
+#   }
+# }
+for(# i in 1:nrow(LL_Stats)
+    # i in 1:1950
+    i in 1:1000 # 2051 #3900
+    # i in 3901:5850
+    # i in 5851:7800
+    # i in 7801:9750
+    # i in 9751:nrow(LL_Stats)
    ){
   lat <- filter(LL_Stats,
-                RowNum == i
+                RowNum == (i + 1950 + 1000 + 1000 + 1000 + 1000)
                ) %>%
     select(Lat_Med)
   # lat <- LL_Stats_Test[i, Lat_Med]
   
   lng <- filter(LL_Stats,
-                RowNum == i
+                RowNum == (i + 1950 + 1000 + 1000 + 1000 + 1000)
                ) %>%
     select(Lng_Med)
   # lng <- LL_Stats_Test[i, Lng_Med]
   
-  APIData <- fromJSON(paste0(url_1,
+  # APIData <- fromJSON(paste0(url_1,
+  # APIData2 <- fromJSON(paste0(url_1,
+  # APIData3 <- fromJSON(paste0(url_1,
+  # APIData4 <- fromJSON(paste0(url_1,
+  # APIData5 <- fromJSON(paste0(url_1,
+  APIData6 <- fromJSON(paste0(url_1,
+  # APIData7 <- fromJSON(paste0(url_1,
+  # APIData8 <- fromJSON(paste0(url_1,
+  # APIData9 <- fromJSON(paste0(url_1,
+  # APIData10 <- fromJSON(paste0(url_1,
+  # APIData11 <- fromJSON(paste0(url_1,
                              lat,
                              url_2,
                              lng,
@@ -295,20 +338,37 @@ for(i in 1:nrow(LL_Stats)
                       flatten = TRUE
                      )
   
-  message("Retrieving Zip Code ", i)
+  message("Retrieving Zip Code ", (i + 1950 + 1000 + 1000 + 1000 + 1000)
+         )
   
-  pages[[i]] <- APIData$postalCodes
+  # pages[[i]] <- APIData$postalCodes
+  # pages2[[i]] <- APIData2$postalCodes
+  # pages3[[i]] <- APIData3$postalCodes
+  # pages4[[i]] <- APIData4$postalCodes
+  # pages5[[i]] <- APIData5$postalCodes
+  pages6[[i]] <- APIData6$postalCodes
+  # pages7[[i]] <- APIData7$postalCodes
+  # pages8[[i]] <- APIData8$postalCodes
+  # pages9[[i]] <- APIData9$postalCodes
+  # pages10[[i]] <- APIData10$postalCodes
+  # pages11[[i]] <- APIData11$postalCodes
+  
+  # Sys.sleep(3900)
 }
 )
-# class(APIData)
-# str(APIData)
+# class(APIData2)
+# class(APIData2$postalCodes)
+# str(APIData2)
+# head(APIData$postalCodes$postalCode)
 # head(APIData)
 # 
-class(pages)
-# str(pages)
+class(pages2)
+# str(pages2)
 # nrow(pages)
-# col(pages)
-head(pages[[1]], 3)
+# ncol(pages)
+pages2[[1199]]
+pages2[[2051]]
+head(pages2[[1]], 3)
 tail(pages, 2)
 pages$data.frame$APIData$postalCodes$postalCode
 pages$APIData$postalCodes$postalCode
@@ -326,9 +386,27 @@ pages$APIData$postalCodes$postalCode
 ##### Combine the lists into one
 
 # APIData_All <- rbind.fill(pages)
-Zips <- rbind.pages(pages)
-APIData_All2 <- rbind.pages(pages2)
-bind_rows(pages)
+# Zips <- rbind.pages(pages)
+# Zips2 <- rbind.pages(pages2[sapply(pages2, length) > 0])
+# Zips3 <- rbind.pages(pages3[sapply(pages3, length) > 0])
+# Zips4 <- rbind.pages(pages4[sapply(pages4, length) > 0])
+# Zips5 <- rbind.pages(pages5[sapply(pages5, length) > 0])
+Zips6 <- rbind.pages(pages6[sapply(pages6, length) > 0])
+# Zips7 <- rbind.pages(pages7[sapply(pages7, length) > 0])
+# Zips8 <- rbind.pages(pages8[sapply(pages8, length) > 0])
+# Zips9 <- rbind.pages(pages9[sapply(pages9, length) > 0])
+# Zips10 <- rbind.pages(pages10[sapply(pages10, length) > 0])
+# Zips11 <- rbind.pages(pages11[sapply(pages11, length) > 0])
+
+
+pages[sapply(pages, length) <= 0]
+pages2[sapply(pages2, length) <= 0]
+
+str(Zips3)
+tail(Zips)
+View(Zips2)
+# APIData_All2 <- rbind.pages(pages2)
+# bind_rows(pages)
 # APIData_All <- rbind.pages(c(pages[[1]],
 #                              pages[[2]],
 #                              pages[[3]]
@@ -345,11 +423,32 @@ tail(APIData_All, 3)
 View(head(APIData_All, 3)
     )
 
+str(Zips2)
 
+LL_Stats_Test <- mutate(LL_Stats,
+                        UniqueLatLng = paste(Lat_Med, Lng_Med, sep = "--")
+                       )
+View(head(LL_Stats_Test))
 
+Zips2_Test <- mutate(Zips2,
+                     UniqueLatLng = paste(lat, lng, sep = "--")
+                    )
+str(Zips2_Test)
+View(head(Zips2_Test))
 
+Combined_Test <- left_join(LL_Stats_Test,
+                           Zips2_Test,
+                           by = c("UniqueLatLng" = "UniqueLatLng")
+                          )
 
+View(Combined_Test)
+View(filter(Combined_Test,
+            between(RowNum, 1949, 2051) &
+              is.na(adminCode2)
+           )
+    )
 
+pages2[[2]]
 ```
 
 
