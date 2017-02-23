@@ -14,6 +14,7 @@ Control + Alt + Shift + m = rename in scope
 Load the packages to be used.
 ```{r echo = FALSE, message = FALSE}
 
+library("jsonlite")
 library("tidyr")
 library("plyr")
 library("dplyr")
@@ -29,7 +30,7 @@ library("rbokeh")
 ```
 
 
-Get the data.
+Get the Bus data.
 
 First let's check the working directory.
 ```{r}
@@ -192,6 +193,162 @@ str(AllDays_StopIDNew)
 #             Stop_Desc == "METROWAY ANNNOUCEMNT CORR"
 #            )
 #     )
+
+```
+
+
+
+Lat Long stats for pulling in Zip codes later.
+```{r}
+
+LL_Stats <- group_by(AllDays_StopIDNew,
+                     StopID_Clean
+                    ) %>% 
+  summarise(Lat_Mean = mean(Latitude, na.rm = TRUE),
+            Lat_Med = median(Latitude, na.rm = TRUE),
+            Lng_Mean = mean(Longitude, na.rm = TRUE),
+            Lng_Med = median(Longitude, na.rm = TRUE)
+           ) %>% 
+  mutate(Lat_MeaLessMed = Lat_Mean - Lat_Med,
+         Lng_MeaLessMed = Lng_Mean - Lng_Med,
+         RowNum = row_number()
+        )
+
+str(LL_Stats)
+summary(LL_Stats)
+
+View(head(arrange(LL_Stats,
+                  Lat_MeaLessMed
+                 ),
+          500
+         )
+    )
+
+View(head(arrange(LL_Stats,
+                  desc(Lat_MeaLessMed)
+                 ),
+          500
+         )
+    )
+
+View(head(arrange(LL_Stats,
+                  Lng_MeaLessMed
+                 ),
+          500
+         )
+    )
+
+View(head(arrange(LL_Stats,
+                  desc(Lng_MeaLessMed)
+                 ),
+          500
+         )
+    )
+
+```
+
+
+Pulling in Zip Code data.
+```{r}
+
+# LL_Stats_Test <- data.table(head(LL_Stats, 100))
+# setkey(LL_Stats_Test, RowNum)
+# str(LL_Stats_Test)
+# 
+# View(LL_Stats_Test)
+
+# URL EXAMPLE
+# http://api.geonames.org/findNearbyPostalCodesJSON?lat=38.89560&lng=-76.94873&radius=0&username=supermdat
+
+url_1 <- "http://api.geonames.org/findNearbyPostalCodesJSON?lat="
+url_2 <- "&lng="
+url_3 <- "&radius=0&username="
+username <- "supermdat"
+
+
+##### Store everything in multiple lists
+
+pages <- list()
+
+system.time(
+for(i in 1:nrow(LL_Stats)
+   ){
+  lat <- filter(LL_Stats,
+                RowNum == i
+               ) %>%
+    select(Lat_Med)
+  # lat <- LL_Stats_Test[i, Lat_Med]
+  
+  lng <- filter(LL_Stats,
+                RowNum == i
+               ) %>%
+    select(Lng_Med)
+  # lng <- LL_Stats_Test[i, Lng_Med]
+  
+  APIData <- fromJSON(paste0(url_1,
+                             lat,
+                             url_2,
+                             lng,
+                             url_3,
+                             username
+                            ),
+                      flatten = TRUE
+                     )
+  
+  message("Retrieving Zip Code ", i)
+  
+  pages[[i]] <- APIData$postalCodes
+}
+)
+# class(APIData)
+# str(APIData)
+# head(APIData)
+# 
+class(pages)
+# str(pages)
+# nrow(pages)
+# col(pages)
+head(pages[[1]], 3)
+tail(pages, 2)
+pages$data.frame$APIData$postalCodes$postalCode
+pages$APIData$postalCodes$postalCode
+# head(pages[[1]], 2)
+# 
+# pages[[1]]$Products$List
+# 
+# pages[[1]]$Products$List$Id
+# pages[[1]]$Products$List$Name
+# 
+# pages[[2]]$Products$List$Id
+# pages[[2]]$Products$List$Name
+
+
+##### Combine the lists into one
+
+# APIData_All <- rbind.fill(pages)
+Zips <- rbind.pages(pages)
+APIData_All2 <- rbind.pages(pages2)
+bind_rows(pages)
+# APIData_All <- rbind.pages(c(pages[[1]],
+#                              pages[[2]],
+#                              pages[[3]]
+#                             )
+#                           )
+
+class(APIData_All)
+# str(APIData_All)
+nrow(APIData_All)
+ncol(APIData_All)
+head(APIData_All, 3)
+tail(APIData_All, 3)
+# View(APIData_All)
+View(head(APIData_All, 3)
+    )
+
+
+
+
+
 
 ```
 
