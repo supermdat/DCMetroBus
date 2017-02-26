@@ -248,16 +248,10 @@ View(head(arrange(LL_Stats,
 ```
 
 
-Pulling in Zip Code data.
+Pulling in Zip Code data from api.geonames.org.
 ```{r}
 
-# LL_Stats_Test <- data.table(head(LL_Stats, 100))
-# setkey(LL_Stats_Test, RowNum)
-# str(LL_Stats_Test)
-# 
-# View(LL_Stats_Test)
-
-# URL EXAMPLE
+# URL EXAMPLE:
 # http://api.geonames.org/findNearbyPostalCodesJSON?lat=38.89560&lng=-76.94873&radius=0&username=supermdat
 
 url_1 <- "http://api.geonames.org/findNearbyPostalCodesJSON?lat="
@@ -266,14 +260,11 @@ url_3 <- "&radius=0&username="
 username <- "supermdat"
 
 
-##### Store everything in multiple lists
-
-pages1 <- list()
-
-
-# max_row_per_hr <- 1000
 # need to group in bunches as http://api.geonames.org limits pulls to 2000 per hour
 
+
+##### Store everything in multiple lists
+pages1 <- list()
 
 
 system.time(
@@ -284,15 +275,14 @@ system.time(
 #     
 #   }
 # }
-for(i in 1:975 #1950 #(nrow(LL_Stats)-9950)
-   ){
+for(i in 1:1000){
   lat <- filter(LL_Stats,
-                RowNum == (i + 975)
+                RowNum == i
                ) %>%
     select(Lat_Med)
   
   lng <- filter(LL_Stats,
-                RowNum == (i + 975)
+                RowNum == i
                ) %>%
     select(Lng_Med)
   
@@ -306,8 +296,7 @@ for(i in 1:975 #1950 #(nrow(LL_Stats)-9950)
                        flatten = TRUE
                       )
   
-  message("Retrieving Zip Code ", (i + 975)
-         )
+  message("Retrieving Zip Code ", i)
   
   pages1[[i]] <- APIData1$postalCodes
   
@@ -315,42 +304,24 @@ for(i in 1:975 #1950 #(nrow(LL_Stats)-9950)
 }
 )
 
-# class(APIData2)
+# class(APIData1)
 # class(APIData2$postalCodes)
-# str(APIData2)
-# head(APIData$postalCodes$postalCode)
-# head(APIData)
-# 
-class(pages2)
-# str(pages2)
-# nrow(pages)
-# ncol(pages)
-pages2[[1199]]
-pages2[[2051]]
-head(pages2[[1]], 3)
-tail(pages, 2)
-pages$data.frame$APIData$postalCodes$postalCode
-pages$APIData$postalCodes$postalCode
-# head(pages[[1]], 2)
-# 
-# pages[[1]]$Products$List
-# 
-# pages[[1]]$Products$List$Id
-# pages[[1]]$Products$List$Name
-# 
-# pages[[2]]$Products$List$Id
-# pages[[2]]$Products$List$Name
+# str(APIData1)
+# head(APIData1)
+# class(pages1)
+# str(pages1)
+# nrow(page1)
+# ncol(page1)
+# pages1[[1199]]
+# pages1[[2051]]
 
 
-##### Combine the lists into one
-
-# APIData_All <- rbind.fill(pages)
-
+##### Combine the lists into one page
 Zips1 <- rbind.pages(pages1[sapply(pages1, length) > 0])
 
 
-Zips_All <- bind_rows(#Zips,
-                      Zips0,
+##### Combine all pages
+Zips_All <- bind_rows(Zips0,
                       Zips1,
                       Zips2,
                       Zips3,
@@ -361,22 +332,23 @@ Zips_All <- bind_rows(#Zips,
                       Zips8,
                       Zips9,
                       Zips10,
+                      # Zips1_a,
                       .id = "id"
                      ) %>% 
-  mutate(UniqueLatLng = paste(lat, lng, sep = "--")
+  mutate(UniqueLatLng = paste(lat, lng, sep = "__")
         )
 
-# Zips_All_b <- Zips_All
-str(Zips_All)
-View(head(Zips_All))
+# str(Zips_All)
+# View(head(Zips_All))
 
 
+# str(LL_Stats)
 LL_Stats_UnqLatLng <- mutate(LL_Stats,
-                             UniqueLatLng = paste(Lat_Med, Lng_Med, sep = "--")
+                             UniqueLatLng = paste(Lat_Med, Lng_Med, sep = "__")
                             )
 
-str(LL_Stats_UnqLatLng)
-View(head(LL_Stats_UnqLatLng))
+# str(LL_Stats_UnqLatLng)
+# View(head(LL_Stats_UnqLatLng))
 
 
 LL_StatsZips <- left_join(LL_Stats_UnqLatLng,
@@ -385,68 +357,53 @@ LL_StatsZips <- left_join(LL_Stats_UnqLatLng,
                          )
 
 str(LL_StatsZips)
-View(LL_StatsZips)
+# View(head(LL_StatsZips))
 
+# Not sure whey these couldn't be found (why they're NA)
 View(filter(LL_StatsZips,
             is.na(postalCode)
            )
     )
 
-View(filter(Zips_All,
-            UniqueLatLng == "38.931858---77.036911"
-           )
-    )
-
-View(filter(LL_Stats,
-            Lat_Med == 38.931858 &
-              Lng_Med == -77.036911
-           )
-    )
-
-View(Zips)
-
-pages[sapply(pages, length) <= 0]
-pages2[sapply(pages2, length) <= 0]
-
-str(Zips3)
-tail(Zips)
-View(Zips2)
-# APIData_All2 <- rbind.pages(pages2)
-# bind_rows(pages)
-# APIData_All <- rbind.pages(c(pages[[1]],
-#                              pages[[2]],
-#                              pages[[3]]
-#                             )
-#                           )
-
-class(APIData_All)
-# str(APIData_All)
-nrow(APIData_All)
-ncol(APIData_All)
-head(APIData_All, 3)
-tail(APIData_All, 3)
-# View(APIData_All)
-View(head(APIData_All, 3)
-    )
-
-str(Zips2)
+```
 
 
+Join to create one dataset that also includes Zip variables.
+```{r}
 
-Zips2_Test <- mutate(Zips2,
-                     UniqueLatLng = paste(lat, lng, sep = "--")
-                    )
-str(Zips2_Test)
-View(head(Zips2_Test))
+rm(url_1, url_2, url_3, username, pages0, pages1, pages2, pages3, pages4, pages5, pages6, pages7, pages8, pages9, pages10, i, lat, lng, APIData0, APIData1, APIData2, APIData3, APIData4, APIData5, APIData6, APIData7, APIData8, APIData9, APIData10, LL_Stats, LL_Stats_UnqLatLng)
 
 
-View(filter(Combined_Test,
-            between(RowNum, 1949, 2051) &
-              is.na(adminCode2)
-           )
-    )
+AllDays_Zips <- left_join(AllDays_StopIDNew,
+                          LL_StatsZips,
+                          by = c("StopID_Clean" = "StopID_Clean")
+                         ) %>% 
+  rename(Stop_State = adminCode1,
+         Stop_County = adminName2,
+         Stop_City = placeName,
+         Stop_Zip = postalCode
+         )
 
-pages2[[2]]
+rm(AllDays_StopIDNew, LL_StatsZips)
+str(AllDays_Zips)
+
+```
+
+
+Updating variable types.
+```{r}
+
+AllDays_Zips$Stop_State <- factor(AllDays_Zips$Stop_State)
+AllDays_Zips$Stop_County <- factor(AllDays_Zips$Stop_County)
+AllDays_Zips$Stop_Zip <- factor(AllDays_Zips$Stop_Zip)
+AllDays_Zips$Stop_City <- factor(AllDays_Zips$Stop_City)
+
+AllDays_Zips$distance <- as.numeric(AllDays_Zips$distance)
+AllDays_Zips$countryCode <- factor(AllDays_Zips$countryCode)
+AllDays_Zips$adminName1 <- factor(AllDays_Zips$adminName1)
+
+str(AllDays_Zips)
+
 ```
 
 
@@ -457,7 +414,7 @@ Inspecting incidences of consecutive Stop_IDs. This is done because investigatio
 Create data on the runs (consecutive Stop_IDs).
 ```{r}
 
-StopID_Runs <- rle(AllDays_StopIDNew$StopID_Clean)
+StopID_Runs <- rle(AllDays_Zips$StopID_Clean)
 
 StopID_Runs$ends <- cumsum(StopID_Runs$lengths)
 
@@ -618,15 +575,14 @@ When consecutive Stop_ID occurrs, only take the first occurrence. This is done b
 This is probably less than ideal with regards to Dwell_Time, but should not make much difference for calculations of travel time, speed, etc.
 ```{r}
 
-AllDays_FirstStopID <- AllDays_StopIDNew[StopID_Runs$starts, ]
+AllDays_FirstStopID <- AllDays_Zips[StopID_Runs$starts, ]
 
-dim(AllDays_StopIDNew)
+dim(AllDays_Zips)
 dim(AllDays_FirstStopID)
 
-nrow(AllDays_StopIDNew) - nrow(AllDays_FirstStopID)
+nrow(AllDays_Zips) - nrow(AllDays_FirstStopID)
 
-rm(AllDays_StopIDNew)
-rm(StopID_Runs)
+rm(AllDays_Zips, StopID_Runs)
 str(AllDays_FirstStopID)
 
 ```
@@ -1120,6 +1076,7 @@ Re-ordering the variables to ease with comprehension.
 
 AllDays_NewOrder <-  select(AllDays_DirChange,
                             RowNum_OG,
+                            UniqueLatLng,
                             group,
                             StartStop_ID,
                             BusDay_EventNum,
@@ -1137,6 +1094,11 @@ AllDays_NewOrder <-  select(AllDays_DirChange,
                             StopID_Clean,
                             StopID_Indicator,
                             Stop_Desc,
+                            countryCode,
+                            Stop_State,
+                            Stop_County,
+                            Stop_City,
+                            Stop_Zip,
                             Event_Type,
                             Event_Description,
                             Event_Time_Yr,
@@ -1238,6 +1200,10 @@ AllDays_NewOrder <-  select(AllDays_DirChange,
                            )
 
 rm(AllDays_DirChange)
+str(select(AllDays_NewOrder,
+           -matches("(q(2|5|(95)|(98)))|Mean|Med|Cnt")
+          )
+   )
 str(AllDays_NewOrder)
 
 # View(head(AllDays_NewOrder, 500))
@@ -1248,6 +1214,15 @@ str(AllDays_NewOrder)
 
 Summarizing the data to help spot anomolies.
 ```{r}
+
+View(group_by(AllDays_NewOrder,
+              Stop_City) %>% 
+       summarise(Cnt_Num = n(),
+                 Cnt_Pct = 100*Cnt_Num / (nrow(AllDays_NewOrder)
+                                         )
+                ) %>% 
+       arrange(desc(Cnt_Num))
+)
 
 summary(AllDays_NewOrder)
 
@@ -1414,8 +1389,7 @@ Investigation of TravelDistance_Mi.
 Let's look at just the TravelDistance_Mi values that are NOT "NA".
 ```{r}
 
-rm(TestTable)
-rm(TestTable_Spread)
+rm(TestTable, TestTable_Spread)
 
 TravelDistance_Mi_NoNA <- filter(AllDays_NewOrder,
                                  # TravelDistance_Mi != 0 &
