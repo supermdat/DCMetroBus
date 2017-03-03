@@ -2720,12 +2720,13 @@ TimeBtwEvents_X2_ViolinPlot_z
 ```
 
 
+Waiting time analyses.
 
+Munging and sampling data to go from time beteen buses to "average" waiting time.
 
-EXPERIMENT ON WAITING TIME.
+First, get the max and min times of bus stops (each day, and for each route).
 ```{r}
 
-system.time(
 RouteMinMax <- group_by(NewTravTime,
                         Route,
                         Event_Time_Date
@@ -2733,31 +2734,35 @@ RouteMinMax <- group_by(NewTravTime,
   summarise(MinTime = min(Event_Time),
             MaxTime = max(Event_Time)
            )
-)
 
 str(RouteMinMax)
 View(RouteMinMax)
 
+```
 
-View(head(NewTravTime, 500))
+
+Waiting time analyses.
+
+Munging and sampling data to go from time beteen buses to "average" waiting time.
+
+(Pulls here are done by day, as the data are too large to do at once.)
+```{r}
+
+# View(head(NewTravTime, 500))
+
+# For each record, create a random datetime between the first and last stop for that bus route (on that day).
+for(i in 3:7){
 
 set.seed(123456789)
-system.time(
 Samp <- select(NewTravTime,
                RowNum_OG,
                Route,
+               # RouteGroup,
                Event_Time_Date,
                StopID_Clean,
                starts_with("Event")
               ) %>% 
-  # sample_n(size = 10000) %>%
-  # filter(Route == "X2" &
-  #          StopID_Clean == 1000987
-  #       ) %>%
-  # filter(Route == "X2" |
-  #          Route == "P6"
-  #       ) %>%
-  filter(Event_Time_Date == 4) %>% 
+  filter(Event_Time_Date == i) %>%  # needed to do this each day (3-7) because the complete file was too large to do at once
   left_join(RouteMinMax,
             by = c("Route" = "Route",
                    "Event_Time_Date" = "Event_Time_Date"
@@ -2770,104 +2775,27 @@ Samp <- select(NewTravTime,
                                 tz = "America/New_York"
                                )
         ) %>% 
-  # group_by(Route,
-  #          StopID_Clean
-  #         ) %>% 
   arrange(Route,
           StopID_Clean,
           Event_Time
          ) 
-)
-# %>% 
-  # as.data.frame()
-  # mutate(NextBus = Event_Time[min(which(Event_Time > SampTime)
-  #                                )
-  #                            ]
-  #       )
 
-
-          # str(Samp)
-          # View(head(Samp, 500))
-          # 
-          # View(
-          # group_by(Samp,
-          #          RowNum_OG
-          #         ) %>% 
-          #   summarise(Cnt_Num = n(),
-          #             Cnt_Pct = 100 * Cnt_Num / nrow(Samp)
-          #            ) %>% 
-          #   arrange(desc(Cnt_Num))
-          # )
-
-# system.time(
-# Testing3 <- sqldf("Select     *
-#                              ,(Select     min(Event_Time)
-#                                From       Samp            as s2
-#                                Where      s2.Event_Time > s1.SampTime
-#                               )                                        as NextBus
-#                    From       Samp                                     as s1
-#                    Where      s1.Route = s2.Route
-#                       And     s1.StopID_Clean = s2.StopID_Clean
-#          
-#                   ") %>%
-#   mutate(NB = as_datetime(NextBus,
-#                           tz = "America/New_York"
-#                          ),
-#          WaitTime_Sec = as.numeric(NB - SampTime),
-#          WaitTime_Min = WaitTime_Sec / 60
-#         ) %>% 
-#   arrange(Route,
-#           StopID_Clean,
-#           Event_Time
-#          )
-# )
+# str(Samp)
+# View(head(Samp, 500))
 # 
-# str(Testing3)
-# View(Testing3)
-# 
-# View(filter(Testing3,
-#             Event_Time == "2016-10-07 18:05:21")
-#     )
-# 
-# View(arrange(Testing3,
-#              Event_Time
-#             )
-#     )
-
-
-
-# system.time(
-# Testing4 <- sqldf("Select     Route
-#                              ,StopID_Clean
-#                              ,Event_Time
-#                              ,min(ET)                                         as NextBus
-#                    From      (     Select          s2.*
-#                                                    s3.Event_Time              as ET
-#                                    From            Samp                       as s2
-#                                       Inner Join (    Select     *
-#                                                       From       Samp
-#                                                  )                            as s3
-#                                            On    s2.Route = s3.Route
-#                                            And   s2.StopID_Clean = s3.StopID_Clean
-#                                            And   s3.Event_Time > s2.SampTime
-# 
-#                              )
-#                   Group By   Route
-#                             ,StopID_Clean
-#                             ,Event_Time
-#                   Order By   Route
-#                             ,StopID_Clean
-#                             ,Event_Time
-#                   ") %>%
-#   mutate(NB = as_datetime(NextBus,
-#                           tz = "America/New_York"
-#                          )
-#         )
+# View(
+# group_by(Samp,
+#          RowNum_OG
+#         ) %>%
+#   summarise(Cnt_Num = n(),
+#             Cnt_Pct = 100 * Cnt_Num / nrow(Samp)
+#            ) %>%
+#   arrange(desc(Cnt_Num))
 # )
 
 
+# For each Route and StopID combination, get all the Event_Time values that are after the SampTime value.
 # estimating approx 2hrs of runtime for all 2.8m records
-system.time(
 Testing_A <- sqldf("   Select               t1.*
                                             ,t2.Event_Time             as NextBus
                         From                 Samp                      as t1
@@ -2885,54 +2813,17 @@ Testing_A <- sqldf("   Select               t1.*
                           tz = "America/New_York"
                          )
         )
-)
 
-          # str(Testing5)
-          # View(head(Testing5, 500))
-          # View(head(Samp, 500))
-
+# str(Testing_A)
+# View(head(Testing_A, 500))
+# View(head(Samp, 500))
 
 
-# Testing6 <- sqldf("     Select               RowNum_OG
-#                                             ,Route
-#                                             ,StopID_Clean
-#                                             ,Event_Description
-#                                             ,Event_Time
-#                                             ,MinTime
-#                                             ,MaxTime
-#                                             ,SampTime
-#                                             ,NB
-#                                             ,min(NB)                as NB2
-#                         From                 Testing5
-#                         Group By             RowNum_OG
-#                                             ,Route
-#                                             ,StopID_Clean
-#                                             ,Event_Description
-#                                             ,Event_Time
-#                                             ,MinTime
-#                                             ,MaxTime
-#                                             ,SampTime
-#                                             ,NB
-#                         Order By             Route
-#                                             ,StopID_Clean
-#                                             ,Event_Time
-#                   "
-#                  ) %>% 
-#   mutate(NextBus_Time = as_datetime(NB2, tz = "America/New_York")
-#         )
-#   
-# str(Testing6)
-# View(Testing6)
-
-# rm(Samp2, Testing3, Testing6)
-
-
-
+# Filter the dataframe to only include the bus arrival at StopID that is the next to come after the SampTime.
 # estimating approx 20min of runtime for all 2.8m records
-system.time(
-Testing4 <- select(Testing_A,
-                   -NextBus
-                  ) %>% 
+Testing <- select(Testing_A,
+                  -NextBus
+                 ) %>% 
   group_by(RowNum_OG) %>% 
   filter(NB == min(NB)
         ) %>% 
@@ -2941,28 +2832,62 @@ Testing4 <- select(Testing_A,
           Event_Time
          ) %>% 
   mutate(WaitTime_Min = as.numeric(NB - SampTime),
-         WaitTime_Sec = WaitTime_Min * 60
+         WaitTime_Sec = WaitTime_Min * 60,
+         WaitTime_Sec2 = NB - SampTime,
+         WaitTime_Min2 = WaitTime_Sec2 / 60
         ) %>% 
   as.data.frame()
-)
 
-str(Testing4)
-View(Testing4)
-# rm(Testing_A)
+assign(paste0("Testing_", i),
+       Testing
+      )
 
-# NEED TO DO Event_Time_Day at 3, 6, 7
+rm(Samp,Testing_A, Testing)
+str(get(paste0("Testing_", i)))
+View(get(paste0("Testing_", i)))
+}
 
 
-sss <- distinct(select(Testing5,
-                       RowNum_OG
-                      )
-               )
+# Bind all the individual dataframes together.
+WaitData_DayPull <- bind_rows(Testing_3,
+                              Testing_4,
+                              Testing_5,
+                              Testing_6,
+                              Testing_7
+                             ) %>% 
+  mutate(WaitTime_Sec3 = NB - SampTime,
+         WaitTime_Min3 = WaitTime_Sec3 / 60
+        ) %>% 
+  arrange(Route,
+          StopID_Clean,
+          Event_Time
+         )
 
-str(sss)
+rm(Testing_3, Testing_4, Testing_5, Testing_6, Testing_7)
+str(WaitData_DayPull)
+View(head(WaitData_DayPull, 500))
+View(tail(WaitData_DayPull, 500))
+
+```
+
+
+Waiting time analyses.
+
+Munging and sampling data to go from time beteen buses to "average" waiting time.
+
+Basic investigation of any missing rows from data pulled by day.
+```{r}
+
+DistinctRowNum_OG <- distinct(select(WaitData_DayPull,
+                                     RowNum_OG
+                                    )
+                             )
+
+str(DistinctRowNum_OG)
 
 View(
 anti_join(Samp,
-          sss,
+          DistinctRowNum_OG,
           by = c("RowNum_OG" = "RowNum_OG")
          )
 )
@@ -2982,106 +2907,422 @@ View(filter(Testing7,
               SampTime < "2016-10-06 23:59:59")
     )
 
+```
 
-#   Samp2 <- left_join(Samp,
-#                      select(Samp,
-#                             Route,
-#                             StopID_Clean,
-#                             Event_Time
-#                            ),
-#                      by = c("Route" = "Route",
-#                             "StopID_Clean" = "StopID_Clean"
-#                            )
-#                     ) %>% 
-#     arrange(Route,
-#             StopID_Clean,
-#             Event_Time.x,
-#             Event_Time.y
-#            ) %>% 
-#     group_by(Route,
-#              StopID_Clean
-#             ) %>% 
-#     filter(Event_Time.y == Event_Time.y[min(which(Event_Time.y > SampTime)
-#                                            )
-#                                        ]
-#           )
-# 
-# View(Samp2)
-# 
-# 
-# str(Samp)
-# Samp3 <- as.data.frame(Samp)
-# str(Samp3)
-# Testing3 <- sqldf("Select     *
-#                              ,(Select     min(Event_Time)
-#                                From       Samp            as s2
-#                                Where      s2.Event_Time > s1.SampTime
-#                               )                                        as NextBus
-#                    From       Samp                                     as s1
-#                   ") %>% 
-#   mutate(NB = as_datetime(NextBus,
-#                           tz = "America/New_York"
-#                          ),
-#          WaitTime_Sec = as.numeric(NB - SampTime),
-#          WaitTime_Min = WaitTime_Sec / 60
-#         )
-# 
-# str(Testing3)
-# View(Testing3)
-#   
-#   
-# Testing <- mutate(Samp,
-#                   NB2 = vapply(Event_Time,
-#                                function(x) min(which(x > SampleTime)
-#                                               )
-#                                       )
-#                                   
-#                  )
-# 
-# View(Testing)
-# 
-# 
-# f <- function(x, y){
-#   y[min(which(y > x)
-#        )
-#   ]
-# }
-#   
-#   group_by(Route,
-#            StopID_Clean
-#           ) %>% 
-#   mutate(Event_Time_Date_L1 = lag(Event_Time_Date)
-#         )
-#   mutate(NextBus = filter(NewTravTime,
-#                           Route == ))
-# 
-#   mutate(WaitTime_Sec = ifelse(between(SampTime, MinTime, MaxTime),
-#                                Event_Time - SampTime,
-#                                NA
-#                               ),
-#          WaitTime_Min = WaitTime_Sec / 60
-#         ) %>% 
-#   arrange(StopID_Clean,
-#           Route,
-#           Event_Time
-#          )
-#   
-#   
-#   View(filter(Samp,
-#               Event_Time > Samp$SampTime
-#              )
-#       )
-#                          
-# 
-# str(Samp)
-# View(head(Samp, 500))
-# View(tail(Samp, 500))
-# View(filter(Samp,
-#             Route == "X2"
-#            )
-#     )
+
+Waiting time analyses.
+
+Munging and sampling data to go from time beteen buses to "average" waiting time.
+
+(Pulls here are done by groupings of bus routes, as the data are too large to do at once.)
+
+First, we need to find the most common bus routes.
+```{r}
+
+rm(DistinctRowNum_OG)
+
+
+# View(head(NewTravTime, 500))
+
+set.seed(123456789)
+BusGroups <- group_by(NewTravTime,
+                      Route
+                     ) %>% 
+  summarise(Cnt_Num = n(),
+            Cnt_Pct = Cnt_Num / nrow(NewTravTime)
+           ) %>% 
+  arrange(desc(Cnt_Num)
+         ) %>% 
+  mutate(RowNum = row_number(),
+         RandNum = runif(n = 268),
+         RouteGroup = ifelse(RandNum <= 0.2,
+                             1,
+                      ifelse(RandNum <= 0.4,
+                             2,
+                      ifelse(RandNum <= 0.6,
+                             3,
+                      ifelse(RandNum <= 0.8,
+                             4,
+                             5
+                            ))))
+        )
+
+str(BusGroups)
+View(BusGroups)
+summary(BusGroups)
 
 ```
+
+
+Waiting time analyses.
+
+Munging and sampling data to go from time beteen buses to "average" waiting time.
+
+(Pulls here are done by groupings of bus routes, as the data are too large to do at once.)
+```{r}
+
+# View(head(NewTravTime, 500))
+
+# For each record, create a random datetime between the first and last stop for that bus route (on that day).
+for(i in 1:5){
+  
+set.seed(123456789)
+Samp <- left_join(NewTravTime,
+                  BusGroups,
+                  by = c("Route" = "Route")
+                  ) %>% 
+  select(RowNum_OG,
+         Route,
+         RouteGroup,
+         Event_Time_Date,
+         StopID_Clean,
+         starts_with("Event")
+        ) %>% 
+  filter(RouteGroup == i) %>%  # needed to do this each RouteGroup (1-5) because the complete file was too large to do at once
+  left_join(RouteMinMax,
+            by = c("Route" = "Route",
+                   "Event_Time_Date" = "Event_Time_Date"
+                  )
+           ) %>% 
+  mutate(SampTime = as_datetime(runif(nrow(.), #200000,
+                                      min = MinTime,
+                                      max = MaxTime
+                                     ),
+                                tz = "America/New_York"
+                               )
+        ) %>% 
+  arrange(Route,
+          StopID_Clean,
+          Event_Time
+         ) 
+
+# str(Samp)
+# View(head(Samp, 500))
+# 
+# View(
+# group_by(Samp,
+#          RowNum_OG
+#         ) %>%
+#   summarise(Cnt_Num = n(),
+#             Cnt_Pct = 100 * Cnt_Num / nrow(Samp)
+#            ) %>%
+#   arrange(desc(Cnt_Num))
+# )
+
+
+# For each Route and StopID combination, get all the Event_Time values that are after the SampTime value.
+# estimating approx 2hrs of runtime for all 2.8m records
+Testing_A <- sqldf("   Select               t1.*
+                                            ,t2.Event_Time             as NextBus
+                        From                 Samp                      as t1
+                             Inner Join      Samp                      as t2
+                                On              t1.Route = t2.Route
+                                And             t1.StopID_Clean = t2.StopID_Clean
+                                And             t2.Event_Time > t1.SampTime
+                        Order By             t1.Route
+                                            ,t1.StopID_Clean
+                                            ,t1.Event_Time
+                                            ,t2.Event_Time
+                  "
+                 ) %>% 
+  mutate(NB = as_datetime(NextBus,
+                          tz = "America/New_York"
+                         )
+        )
+
+# str(Testing_A)
+# View(head(Testing_A, 500))
+# View(head(Samp, 500))
+
+
+# Filter the dataframe to only include the bus arrival at StopID that is the next to come after the SampTime.
+# estimating approx 20min of runtime for all 2.8m records
+Testing <- select(Testing_A,
+                  -NextBus
+                 ) %>% 
+  group_by(RowNum_OG) %>% 
+  filter(NB == min(NB)
+        ) %>% 
+  arrange(Route,
+          StopID_Clean,
+          Event_Time
+         ) %>% 
+  mutate(WaitTime_Min = as.numeric(NB - SampTime),
+         WaitTime_Sec = WaitTime_Min * 60
+        ) %>% 
+  as.data.frame()
+
+assign(paste0("Testing", i),
+       Testing
+      )
+
+rm(Samp,Testing_A, Testing)
+str(get(paste0("Testing", i)))
+View(get(paste0("Testing", i)))
+}
+
+
+# Bind all the individual dataframes together.
+WaitData_RoutePull <- bind_rows(Testing1,
+                                Testing2,
+                                Testing3,
+                                Testing4,
+                                Testing5
+                             ) %>% 
+  mutate(WaitTime_Sec2 = NB - SampTime,
+         WaitTime_Min2 = WaitTime_Sec2 / 60
+        ) %>% 
+  arrange(Route,
+          StopID_Clean,
+          Event_Time
+         )
+
+rm(BusGroups, i, Testing3, Testing4, Testing5, Testing6, Testing7)
+str(WaitData_RoutePull)
+View(head(WaitData_RoutePull, 500))
+View(tail(WaitData_RoutePull, 500))
+
+```
+
+
+Waiting time analyses.
+
+Munging and sampling data to go from time beteen buses to "average" waiting time.
+
+Compare WaitData pulled by day and pulled by route.
+```{r}
+
+dim(WaitData_RoutePull)
+dim(WaitData_DayPull)
+nrow(WaitData_RoutePull) - nrow(WaitData_DayPull)
+
+WaitData_Diff <- anti_join(WaitData_RoutePull,
+                           WaitData_DayPull,
+                           by = c("RowNum_OG" = "RowNum_OG"
+                                 )
+                          ) %>% 
+  select(-WaitTime_Min,
+         -WaitTime_Sec
+        )
+
+str(WaitData_Diff)
+View(head(WaitData_Diff, 500))
+
+View(filter(WaitData_RoutePull,
+            Route == "Z8" &
+              StopID_Clean == 2005465
+            # RowNum_OG = 2902760
+            # Event_Time = 2016-10-07 19:51:47
+           )
+    )
+
+View(group_by(WaitData_Diff,
+              Route
+             ) %>% 
+       summarise(Cnt_Num = n(),
+                 Cnt_Pct = Cnt_Num / nrow(WaitData_Diff)
+                ) %>% 
+       arrange(desc(Cnt_Num)
+              )
+    )
+
+View(filter(WaitData_Diff,
+            Route == "S1"
+           )
+    )
+
+View(filter(WaitData_RoutePull,
+            Route == "S1" &
+              StopID_Clean == 1003132
+            # RowNum_OG = 1151770
+            # Event_Time = 2016-10-07 09:07:12
+           )
+    )
+
+# Can't tell why the pull by day has less records than the pull by route
+
+```
+
+
+Waiting time analyses.
+
+Munging and sampling data to go from time beteen buses to "average" waiting time.
+
+Compare WaitData (pulled by route) and original data (NewTravTime).
+```{r}
+
+# rm(WaitData_Diff)
+
+
+dim(NewTravTime)  # 2,809,529 rows
+dim(WaitData_RoutePull)  # 2,780,848 rows
+nrow(NewTravTime) - nrow(WaitData_RoutePull)  # is 28,681 rows
+
+str(select(NewTravTime,
+           -matches("(q(2|5|(95)|(98)))|Mean|Med|Cnt")
+          )
+   )
+str(WaitData_RoutePull)
+
+Compare_NTT_WD <- left_join(NewTravTime,
+                            select(WaitData_RoutePull,
+                                   RowNum_OG,
+                                   # Route,
+                                   RouteGroup,
+                                   # StopID_Clean,
+                                   # Event_Time,
+                                   MinTime,
+                                   MaxTime,
+                                   SampTime,
+                                   NB,
+                                   WaitTime_Sec2,
+                                   WaitTime_Min2
+                                  ),
+                            by = c("RowNum_OG" = "RowNum_OG")
+                           ) %>% 
+  select(-matches("(q(2|5|(95)|(98)))|Mean|Med|Cnt")
+        ) %>% 
+  arrange(Route,
+          StopID_Clean,
+          Event_Time
+         )
+
+str(Compare_NTT_WD)  # 2,810,109 rows overall  --  29,261 rows with no match
+View(head(Compare_NTT_WD, 500))
+View(filter(Compare_NTT_WD,
+            is.na(MinTime)
+           )
+    )
+
+
+
+View(anti_join(Samp,
+               distinct(select(WaitData_RoutePull,
+                               RowNum_OG
+                              )
+                       ),
+               by = c("RowNum_OG" = "RowNum_OG")
+              )
+    )
+
+
+# The SampTime is AFTER the last bus passed that StopID_Clean
+View(filter(Samp,
+              Route == "X2" &
+              StopID_Clean == 1003774
+            # RowNum_OG = 1146723
+            # Event_Time = 2016-10-07 15:32:18
+           )
+    )
+
+```
+
+
+Box plots for WaitTime (all busses, by Zip Code).
+```{r}
+
+rm(BusGroups, RouteMinMax, Samp, Testing1, Testing2, Testing3, Testing4, Testing5, Testing_3, Testing_4, Testing_5, Testing_6, Testing_7, WaitData_DayPull, WaitData_Diff)
+
+
+str(Compare_NTT_WD)
+View(head(Compare_NTT_WD, 500))
+View(head(mutate(Compare_NTT_WD,
+                 WT_Min = as.numeric(WaitTime_Min2)
+                )
+         )
+    )
+
+WaitTime_AsNum <- Compare_NTT_WD
+WaitTime_AsNum$WaitTime_Sec2 <- as.numeric(WaitTime_AsNum$WaitTime_Sec2)
+WaitTime_AsNum$WaitTime_Min2 <- as.numeric(WaitTime_AsNum$WaitTime_Min2)
+
+
+# Count_Values is needed to display the medians on the box plots
+BusRoute <- select(WaitTime_AsNum,
+                   Route,
+                   WaitTime_Min2,
+                   Stop_Zip
+                  ) %>% 
+  filter(Route == "X2")
+
+CountValues_AllBus_Zip <- ddply(BusRoute,
+                                .(Stop_Zip),
+                                summarise,
+                                Value_Counts = median(WaitTime_Min2, na.rm = TRUE)
+                               )
+
+WaitTime_AllBus_Zip_Box <- ggplot(BusRoute,
+                                  aes(factor(Stop_Zip),
+                                      WaitTime_Min2,
+                                      fill = factor(Stop_Zip)
+                                     )
+                                 ) + 
+  geom_boxplot(outlier.colour="red", notch=TRUE, na.rm = TRUE) +
+  geom_text(data = CountValues_AllBus_Zip,
+            aes(y = Value_Counts,
+                label = format(round(Value_Counts, digits = 1),
+                               nsmall = 1
+                              )
+               ),
+            size = 3,
+            vjust = -0.5
+           ) +
+  theme(legend.position="none", axis.text.x = element_text(angle=45)) +
+  coord_cartesian(# xlim = c(0, 180),
+                  ylim = c(0, 45)
+                 ) +
+  labs(title = "Waiting Time at a Given Stop",
+       x = "Zip Code of Destination",
+       y = "Waiting Time (min)"
+      )
+
+WaitTime_AllBus_Zip_Box
+
+```
+
+
+Test investigation of just the X2 Route. Violin plots for time between bus arrivals (by Zip Code).
+```{r}
+
+TimeBtwEvents_X2_ViolinPlot_z <- ggplot(select(as.data.frame(X2_ByStop),
+                                               TimeToEvent_Min,
+                                               Stop_Zip
+                                               ),
+                                        aes(factor(Stop_Zip),
+                                            TimeToEvent_Min,
+                                            fill = factor(Stop_Zip)
+                                           )
+                                       ) + 
+  geom_violin(draw_quantiles = c(0.25, 0.5, 0.75),
+              trim = TRUE,
+              scale = "count",
+              na.rm = TRUE,
+              show.legend = NA,
+              inherit.aes = TRUE
+             ) +
+  geom_text(data = Count_Values_z,
+            aes(y = Value_Counts,
+                label = format(round(Value_Counts, digits = 1),
+                               nsmall = 1
+                              )
+               ),
+            size = 2.5,
+            vjust = -0.5
+           ) +
+  theme(legend.position="none", axis.text.x = element_text(angle=45)) +
+  coord_cartesian(# xlim = c(0, 180),
+                  ylim = c(0, 60)
+                 ) +
+  labs(title = "How Often an X2 Arrives at a Given Stop",
+       x = "Zip Code of Destination",
+       y = "Time Between Busses (min)"
+      )
+
+TimeBtwEvents_X2_ViolinPlot_z
+
+```
+
+
 
 
 Investigating TravelTime_Sec.
