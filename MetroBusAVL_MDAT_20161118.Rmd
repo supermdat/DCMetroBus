@@ -3205,7 +3205,6 @@ View(anti_join(Samp,
               )
     )
 
-
 # The SampTime is AFTER the last bus passed that StopID_Clean
 View(filter(Samp,
               Route == "X2" &
@@ -3218,7 +3217,7 @@ View(filter(Samp,
 ```
 
 
-Box plots for WaitTime (all busses, by Zip Code).
+Clean up the data a bit.
 ```{r}
 
 rm(BusGroups, RouteMinMax, Samp, Testing1, Testing2, Testing3, Testing4, Testing5, Testing_3, Testing_4, Testing_5, Testing_6, Testing_7, WaitData_DayPull, WaitData_Diff)
@@ -3232,13 +3231,273 @@ View(head(mutate(Compare_NTT_WD,
          )
     )
 
-WaitTime_AsNum <- Compare_NTT_WD
+WaitTime_AsNum <- Compare_NTT_WD %>% 
+  mutate(RouteStop_ID = factor(paste(Route, StopID_Clean, sep = "__")
+                              )
+        )
 WaitTime_AsNum$WaitTime_Sec2 <- as.numeric(WaitTime_AsNum$WaitTime_Sec2)
 WaitTime_AsNum$WaitTime_Min2 <- as.numeric(WaitTime_AsNum$WaitTime_Min2)
 
+rm(Compare_NTT_WD)
+str(WaitTime_AsNum)
+
+```
+
+
+General exploration of wait times.
+```{r}
+
+summary(WaitTime_AsNum$WaitTime_Min2)
+
+WT_Quantiles <- as.data.frame(quantile(WaitTime_AsNum$WaitTime_Min2,
+                                       probs = seq(0, 1, 0.01),
+                                       na.rm = TRUE
+                                      )
+                             )
+
+colnames(WT_Quantiles) <- "Value_Min"
+
+WT_Quantiles$Value_Sec = format(round(WT_Quantiles$Value_Min * 60,
+                                      digits = 2
+                                     ),
+                                nsmall = 2
+                               )
+WT_Quantiles$Value_Hr = format(round(WT_Quantiles$Value_Min / 60,
+                                     digits = 2
+                                    ),
+                                nsmall = 2
+                               )
+WT_Quantiles$Value_Min = format(round(WT_Quantiles$Value_Min,
+                                      digits = 2
+                                     ),
+                                nsmall = 2
+                               )
+
+WT_Quantiles$Quantile <- seq(0, 1, 0.01)
+
+WT_Quantiles <- select(WT_Quantiles,
+                       Quantile,
+                       Value_Sec,
+                       Value_Min,
+                       Value_Hr
+                      )
+
+str(WT_Quantiles)
+View(WT_Quantiles)
+
+
+View(arrange(WaitTime_AsNum,
+             desc(WaitTime_Min2)
+            ) %>% 
+       head(., 5000)
+    )
+
+View(filter(WaitTime_AsNum,
+            between(WaitTime_Min2, 60, 200)
+           ) %>% 
+       arrange(desc(WaitTime_Min2)
+              ) 
+     # %>% 
+     #   head(., 5000)
+    )
+
+# Example of extreme wait times
+View(filter(WaitTime_AsNum,
+            Route == "W13" &  # only 2 bus passes in the entire dataset
+              StopID_Clean == 1003728
+            # Event_Time = 2016-10-03 08:42:46
+           )
+    )
+
+# Example of extreme wait times
+View(filter(WaitTime_AsNum,
+            Route == "S41" &  # only 4 bus passes in the entire dataset
+              StopID_Clean == 1001095
+            # Event_Time = 2016-10-05 15:41:47
+           )
+    )
+
+# Example of extreme wait times
+View(filter(WaitTime_AsNum,
+            Route == "D8" &  # route has VERY limited service after midnight
+              StopID_Clean == 1001669
+            # Event_Time = 2016-10-06 20:31:16
+           )
+    )
+
+```
+
+
+Looks like there might be an issue in wait times when very few Route-Stop combinations are included in the dataset.  Let's explore these.
+```{r}
+
+RouteStop_Cnts <- group_by(WaitTime_AsNum,
+                           RouteStop_ID
+                          ) %>% 
+  summarise(RouteStop_CntNum = n(),
+            RouteStop_CntPct = RouteStop_CntNum / nrow(WaitTime_AsNum)
+           ) %>% 
+  arrange(RouteStop_CntNum)
+
+View(RouteStop_Cnts)
+
+
+RouteStop_CntOfCnt <- group_by(RouteStop_Cnts,
+                               RouteStop_CntNum
+                              ) %>% 
+  summarise(RouteStopCnt_CntNum = n(),
+            RouteStopCnt_CntPct = RouteStopCnt_CntNum / nrow(RouteStop_Cnts)
+           ) %>% 
+  mutate(RouteStopCnt_CntPct_CumSum = cumsum(RouteStopCnt_CntPct),
+         x = 1 - RouteStopCnt_CntPct_CumSum
+        ) %>% 
+  arrange(RouteStop_CntNum)
+  
+ View(RouteStop_CntOfCnt)
+
+```
+
+
+Histogram of the counts of Route-StopID combinations.
+```{r}
+
+RouteStop_Cnts_Bar <- ggplot(RouteStop_CntOfCnt,
+                             aes(x = RouteStop_CntNum,
+                                 # y = ..density..
+                                 y = RouteStopCnt_CntNum
+                                )
+                            ) +
+  # geom_histogram(binwidth = 5, fill = "lightblue", colour = "grey60", size = 0.2) +
+  geom_col(fill = "lightblue", colour = "grey60", size = 0.2) +
+  coord_cartesian(xlim = c(0, 500)
+                  # ylim = c(0, 0.02)
+                 ) +
+  labs(title = "Variation in Routes Passing a Specific Stop",
+       x = "Occurrences of Route-StopID Combiantions",
+       y = "Counts"
+      )
+
+RouteStop_Cnts_Bar
+
+```
+
+
+Create a new dataset limiting extremely small counts of Route-StopID combinations.
+```{r}
+
+WaitTime_RteCnts <- left_join(WaitTime_AsNum,
+                              RouteStop_Cnts,
+                              by = c("RouteStop_ID" = "RouteStop_ID")
+                             ) %>% 
+  select(-RouteStop_CntPct)
+
+dim(WaitTime_AsNum)
+dim(WaitTime_RteCnts)
+
+rm(WaitTime_AsNum)
+str(WaitTime_RteCnts)
+
+
+# Total rows
+nrow(WaitTime_RteCnts)
+
+# Rows of rare RouteStops
+nrow(filter(WaitTime_RteCnts,
+            RouteStop_CntNum <= 60
+           )
+    ) / nrow(WaitTime_RteCnts)
+
+# Rows of extremely long wait times
+nrow(filter(WaitTime_RteCnts,
+            WaitTime_Min2 > 180
+           )
+    ) / nrow(WaitTime_RteCnts)
+
+
+select(WaitTime_RteCnts,
+       WaitTime_Min2
+      ) %>% 
+  summary()
+
+filter(WaitTime_RteCnts,
+       RouteStop_CntNum > 60  # 12 passes per day in a 5-day dataset
+      ) %>% 
+  select(WaitTime_Min2) %>% 
+  summary()
+
+filter(WaitTime_RteCnts,
+       WaitTime_Min2 < 180  # probably means that something went wrong
+      ) %>% 
+  select(WaitTime_Min2) %>% 
+  summary()
+
+
+
+a <- as.data.frame(select(WaitTime_RteCnts,
+                          WaitTime_Min2
+                         ) %>% 
+                     quantile(probs = seq(0, 1, 0.01), na.rm = TRUE)
+                  )
+
+b <- as.data.frame(filter(WaitTime_RteCnts,
+                          RouteStop_CntNum > 60
+                         ) %>% 
+                     select(WaitTime_Min2) %>% 
+                     quantile(probs = seq(0, 1, 0.01), na.rm = TRUE)
+                  )
+
+c <- as.data.frame(filter(WaitTime_RteCnts,
+                          WaitTime_Min2 < 180
+                         ) %>% 
+                     select(WaitTime_Min2) %>% 
+                     quantile(probs = seq(0, 1, 0.01), na.rm = TRUE)
+                  )
+
+WT_Filter_Quantiles <- bind_cols(a, b, c) %>% 
+  mutate(Quantile = seq(0, 1, 0.01)
+        )
+
+colnames(WT_Filter_Quantiles) <- c("All", "RteStpAbv60", "WTBlw180", "Quantile")
+rm(a, b, c)
+View(WT_Filter_Quantiles)
+
+```
+
+
+Histogram of all wait times.
+```{r}
+
+WaitTime_AllBus_HistDen <- ggplot(filter(select(WaitTime_RteCnts,
+                                                WaitTime_Min2
+                                               ),
+                                         !is.na(WaitTime_Min2)
+                                        ),
+                                  aes(x = WaitTime_Min2,
+                                      y = ..density..
+                                     )
+                                ) +
+  geom_histogram(binwidth = 5, fill = "lightblue", colour = "grey60", size = 0.2) +
+  geom_line(stat = "density", colour = "red") +
+  scale_x_continuous(breaks = seq(0, 300, 30)
+                    ) +
+  coord_cartesian(xlim = c(0, 300),
+                  ylim = c(0, 0.035)
+                 ) +
+  labs(title = "Variation in Wait Time",
+       x = "Wait Time (min)",
+       y = "Density"
+      )
+
+WaitTime_AllBus_HistDen
+
+```
+
+
+Box plots for WaitTime (all busses, by Zip Code).
+```{r}
 
 # Count_Values is needed to display the medians on the box plots
-BusRoute <- select(WaitTime_AsNum,
+BusRoute <- select(WaitTime_RteCnts,
                    Route,
                    WaitTime_Min2,
                    Stop_Zip
@@ -3271,7 +3530,7 @@ WaitTime_AllBus_Zip_Box <- ggplot(BusRoute,
   coord_cartesian(# xlim = c(0, 180),
                   ylim = c(0, 45)
                  ) +
-  labs(title = "Waiting Time at a Given Stop",
+  labs(title = "Waiting Time at a Given Stop (for the X2)",
        x = "Zip Code of Destination",
        y = "Waiting Time (min)"
       )
@@ -3284,15 +3543,12 @@ WaitTime_AllBus_Zip_Box
 Test investigation of just the X2 Route. Violin plots for time between bus arrivals (by Zip Code).
 ```{r}
 
-TimeBtwEvents_X2_ViolinPlot_z <- ggplot(select(as.data.frame(X2_ByStop),
-                                               TimeToEvent_Min,
-                                               Stop_Zip
-                                               ),
-                                        aes(factor(Stop_Zip),
-                                            TimeToEvent_Min,
-                                            fill = factor(Stop_Zip)
-                                           )
-                                       ) + 
+WaitTime_AllBus_Zip_Violin <- ggplot(BusRoute,
+                                     aes(factor(Stop_Zip),
+                                         WaitTime_Min2,
+                                         fill = factor(Stop_Zip)
+                                        )
+                                    ) + 
   geom_violin(draw_quantiles = c(0.25, 0.5, 0.75),
               trim = TRUE,
               scale = "count",
@@ -3300,7 +3556,57 @@ TimeBtwEvents_X2_ViolinPlot_z <- ggplot(select(as.data.frame(X2_ByStop),
               show.legend = NA,
               inherit.aes = TRUE
              ) +
-  geom_text(data = Count_Values_z,
+  geom_text(data = CountValues_AllBus_Zip,
+            aes(y = Value_Counts,
+                label = format(round(Value_Counts, digits = 1),
+                               nsmall = 1
+                              )
+               ),
+            size = 3.5,
+            vjust = -0.5
+           ) +
+  theme(legend.position="none", axis.text.x = element_text(angle=45)) +
+  coord_cartesian(# xlim = c(0, 180),
+                  ylim = c(0, 45)
+                 ) +
+  labs(title = "Waiting Time at a Given Stop (for the X2)",
+       x = "Zip Code of Destination",
+       y = "Waiting Time (min)"
+      )
+
+TimeBtwEvents_X2_ViolinPlot_z
+
+```
+
+
+Box plots for WaitTime (Zip Code, by HourGroupZip).
+```{r}
+
+# Count_Values is needed to display the medians on the box plots
+Zip <- select(WaitTime_RteCnts,
+              Route,
+              WaitTime_Min2,
+              Stop_Zip,
+              Event_Time_HrGroup
+             ) %>% 
+  filter(Stop_Zip == 20002)
+
+CountValues_AllBus_HG <- ddply(Zip,
+                               .(Event_Time_HrGroup),
+                               summarise,
+                               Value_Counts = median(WaitTime_Min2,
+                                                     na.rm = TRUE
+                                                    )
+                               )
+
+WaitTime_AllBus_HG_Box <- ggplot(Zip,
+                                 aes(factor(Event_Time_HrGroup),
+                                     WaitTime_Min2,
+                                     fill = factor(Event_Time_HrGroup)
+                                    )
+                                ) + 
+  geom_boxplot(outlier.colour="red", notch=TRUE, na.rm = TRUE) +
+  geom_text(data = CountValues_AllBus_HG,
             aes(y = Value_Counts,
                 label = format(round(Value_Counts, digits = 1),
                                nsmall = 1
@@ -3311,17 +3617,195 @@ TimeBtwEvents_X2_ViolinPlot_z <- ggplot(select(as.data.frame(X2_ByStop),
            ) +
   theme(legend.position="none", axis.text.x = element_text(angle=45)) +
   coord_cartesian(# xlim = c(0, 180),
-                  ylim = c(0, 60)
+                  ylim = c(0, 45)
                  ) +
-  labs(title = "How Often an X2 Arrives at a Given Stop",
-       x = "Zip Code of Destination",
-       y = "Time Between Busses (min)"
+  labs(title = "Waiting Time at a Given Stop (for Zip 20002)",
+       x = "Hour Group",
+       y = "Waiting Time (min)"
       )
+  # facet_wrap(~Stop_Zip
+  #            # nrow = 5
+  #           )
 
-TimeBtwEvents_X2_ViolinPlot_z
+WaitTime_AllBus_HG_Box
 
 ```
 
+
+Violin plots for WaitTime (Zip Code, by HourGroupZip).
+```{r}
+
+WaitTime_AllBus_HG_Vln <- ggplot(Zip,
+                                 aes(factor(Event_Time_HrGroup),
+                                     WaitTime_Min2,
+                                     fill = factor(Event_Time_HrGroup)
+                                    )
+                                ) + 
+  geom_violin(draw_quantiles = c(0.25, 0.5, 0.75),
+              trim = TRUE,
+              scale = "count",
+              na.rm = TRUE,
+              show.legend = NA,
+              inherit.aes = TRUE
+             ) +
+  geom_text(data = CountValues_AllBus_HG,
+            aes(y = Value_Counts,
+                label = format(round(Value_Counts, digits = 1),
+                               nsmall = 1
+                              )
+               ),
+            size = 2.5,
+            vjust = -0.5
+           ) +
+  theme(legend.position="none", axis.text.x = element_text(angle=45)) +
+  coord_cartesian(# xlim = c(0, 180),
+                  ylim = c(0, 90)
+                 ) +
+  labs(title = "Waiting Time at a Given Stop (for Zip 20002)",
+       x = "Hour Group",
+       y = "Waiting Time (min)"
+      )
+  # facet_wrap(~Stop_Zip
+  #            # nrow = 5
+  #           )
+
+WaitTime_AllBus_HG_Vln
+
+```
+
+
+Box plots for WaitTime (Route, by HourGroupZip).
+```{r}
+
+# Count_Values is needed to display the medians on the box plots
+Rte <- select(WaitTime_RteCnts,
+              Route,
+              WaitTime_Min2,
+              Stop_Zip,
+              Event_Time_HrGroup
+             ) %>% 
+  filter(Route == "X2")
+
+CountValues_AllBus_RteHG <- ddply(Rte,
+                                 .(Event_Time_HrGroup),
+                                 summarise,
+                                 Value_Counts = median(WaitTime_Min2,
+                                                       na.rm = TRUE
+                                                      )
+                                )
+
+WaitTime_AllBus_RteHG_Box <- ggplot(Rte,
+                                    aes(factor(Event_Time_HrGroup),
+                                        WaitTime_Min2,
+                                        fill = factor(Event_Time_HrGroup)
+                                       )
+                                   ) + 
+  geom_boxplot(outlier.colour="red", notch=TRUE, na.rm = TRUE) +
+  geom_text(data = CountValues_AllBus_RteHG,
+            aes(y = Value_Counts,
+                label = format(round(Value_Counts, digits = 1),
+                               nsmall = 1
+                              )
+               ),
+            size = 2.5,
+            vjust = -0.5
+           ) +
+  theme(legend.position="none", axis.text.x = element_text(angle=45)) +
+  coord_cartesian(# xlim = c(0, 180),
+                  ylim = c(0, 45)
+                 ) +
+  labs(title = "Waiting Time at a Given Stop",
+       subtitle = ("Route X2"),
+       x = "Hour Group",
+       y = "Waiting Time (min)"
+      ) 
+# +
+#   facet_wrap(~Stop_Zip
+#              # nrow = 5
+#             )
+
+WaitTime_AllBus_RteHG_Box
+
+```
+
+
+Violin plots for WaitTime (Zip Code, by HourGroupZip).
+```{r}
+
+WaitTime_AllBus_RteHG_Vln <- ggplot(Rte,
+                                    aes(factor(Event_Time_HrGroup),
+                                        WaitTime_Min2,
+                                        fill = factor(Event_Time_HrGroup)
+                                       )
+                                   ) + 
+  geom_violin(draw_quantiles = c(0.25, 0.5, 0.75),
+              trim = TRUE,
+              scale = "count",
+              na.rm = TRUE,
+              show.legend = NA,
+              inherit.aes = TRUE
+             ) +
+  geom_text(data = CountValues_AllBus_RteHG,
+            aes(y = Value_Counts,
+                label = format(round(Value_Counts, digits = 1),
+                               nsmall = 1
+                              )
+               ),
+            size = 2.5,
+            vjust = -0.5
+           ) +
+  theme(legend.position="none", axis.text.x = element_text(angle=45)) +
+  coord_cartesian(# xlim = c(0, 180),
+                  ylim = c(0, 45)
+                 ) +
+  labs(title = "Waiting Time at a Given Stop",
+       subtitle = ("(Route X2)"),
+       x = "Hour Group",
+       y = "Waiting Time (min)"
+      ) +
+  facet_wrap(~Stop_Zip
+             # nrow = 5
+            )
+
+WaitTime_AllBus_RteHG_Vln
+
+```
+
+
+
+
+
+
+GET DATA READY FOR SHINY
+```{r}
+
+# str(WaitTime_RteCnts)
+
+Shiny_WaitData_Base <- select(WaitTime_RteCnts,
+                              Route,
+                              Stop_Zip,
+                              Event_Time_Date,
+                              Event_Time_Day,
+                              Event_Time_HrGroup,
+                              Event_Time_Hr,
+                              Latitude,
+                              Longitude,
+                              WaitTime_Min2
+                             )
+
+Shiny_WaitData_Base$Route <- factor(Shiny_WaitData_Base$Route)
+
+str(Shiny_WaitData_Base)
+
+write.table(Shiny_WaitData_Base,
+            "Shiny_WaitData_Base.txt",
+            quote = FALSE,
+            sep = "\t",
+            row.names = FALSE
+           )
+# rm(Shiny_WaitData_Base)
+
+```
 
 
 

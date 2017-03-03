@@ -1,0 +1,334 @@
+---
+title: "DC Metro Bus Wait Times"
+runtime: shiny
+output: html_document
+---
+
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+
+# setwd("/Users/mdturse/Desktop/Analytics/WineDotComAPI/")
+
+library("plyr")
+library("dplyr")
+library("magrittr")
+library("ggplot2")
+library("shiny")
+
+bus_ui <- shinyUI(fluidPage(selectInput(inputId = "Variable1",
+                                        label = "Select your primary variable of interest.",
+                                        choices = c("Route",
+                                                    "ZipCode"
+                                                   ),
+                                        selected = NULL,
+                                        multiple = FALSE
+                                       ),
+                            conditionalPanel(
+                              condition = "input.Variable1 == 'Route'",
+                              selectInput(inputId = "Variable2",
+                                          label = "Select your secondary variable of interest",
+                                          choices = c("HourGroup",
+                                                      "ZipCode"
+                                                     )
+                                         )
+                              ),
+                     mainPanel(
+                       tabsetPanel(type = "tabs",
+                                   tabPanel("Plot",
+                                            plotOutput("plot")
+                                           ),
+                                   tabPanel("Summary",
+                                            verbatimTextOutput("summary")
+                                           ),
+                                   tabPanel("Table",
+                                            tableOutput("table")
+                                           )
+                                  )
+                       ),
+                     dataTableOutput("mytable1")
+                    )
+)
+
+
+
+bus_server <- shinyServer(function(input, output) {
+  
+  BaseData <- read.delim("Shiny_WaitData_Base.txt",
+                         sep = "\t",
+                         header = TRUE,
+                         na.strings=c("NA")
+                        ) %>% 
+    rename(ZipCode = Stop_Zip,
+           HourGroup = Event_Time_HrGroup,
+           Date = Event_Time_Date,
+           Day = Event_Time_Day,
+           Hour = Event_Time_Hr,
+           WaitTime_Min = WaitTime_Min2
+          )
+  
+  # factor the relevant variables
+  BaseData$ZipCode <- factor(BaseData$ZipCode)
+  BaseData$Day <- factor(BaseData$Day,
+                         levels = c("Mon", "Tues", "Wed", "Thurs", "Fri"),
+                         ordered = TRUE
+                        )
+  BaseData$HourGroup <- factor(BaseData$HourGroup,
+                               levels = c("Group0_2", "Group3_5", "Group6_8",
+                                          "Group9_11", "Group12_14", "Group15_17",
+                                          "Group18_20", "Group21_23"
+                                         ),
+                               ordered = TRUE
+                              )
+  
+  %>% 
+    rename(Appellation = Appellation.Name,
+           Region = Appellation.Region.Name,
+           Varietal = Varietal.WineType.Name
+          ) %>% 
+    filter(Appellation != "" &
+           Appellation != "Unknown" &
+           Region != "Unknown"
+          )
+# str(BaseData)
+    
+  Wine <- reactive( {
+
+
+    Filter_Wine <- filter(WineData,
+                          Varietal %in% input$WineType
+                         )
+
+#     Filter_Vintage <- ifelse(input$Vintage == "Yes",
+#                              group_by(Filter_Wine,
+#                                       Appellation.Name,
+#                                       Varietal.WineType.Name,
+#                                       Vintage
+#                                      ),
+#                              group_by(Filter_Wine,
+#                                       Appellation.Name,
+#                                       Varietal.WineType.Name
+#                                      )
+#                             )
+    
+    Filter_Vintage2 <- switch(input$Vintage,
+                              "Yes" = group_by(Filter_Wine,
+                                               Appellation,
+                                               Region,
+                                               Varietal,
+                                               Vintage
+                                               ),
+                              "No" = group_by(Filter_Wine,
+                                              Appellation,
+                                              Region,
+                                              Varietal
+                                             )
+                             )
+
+#     switch(input$Vintage,
+#            "Yes" = Filter_Vintage3 <- group_by(Filter_Wine,
+#                                                Appellation.Name,
+#                                                Varietal.WineType.Name,
+#                                                Vintage
+#                                                ),
+#            "No" = Filter_Vintage3 <- group_by(Filter_Wine,
+#                                               Appellation.Name,
+#                                               Varietal.WineType.Name
+#                                              )
+#           )
+    
+#       if(input$Vintage == "Yes") {
+#         Wine$d1 <- group_by(Filter_Wine,
+#                          Appellation.Name,
+#                          Varietal.WineType.Name,
+#                          Vintage
+#                         )
+#         }
+#       if(input$Vintage == "No") {
+#         Wine$d1 <- group_by(Filter_Wine,
+#                          Appellation.Name,
+#                          Varietal.WineType.Name
+#                         )
+#         }
+#       return(d1)
+    
+    # FilterTable <- as.data.frame(Filter_Wine)
+    # FilterTable2 <- as.data.frame(Filter_Vintage2)
+
+    Medians <- summarise(Filter_Vintage2,
+                         PointsPerDollar = round(median(Ratio_ScorePrice, na.rm = TRUE),
+                                                 2
+                                                ),
+                         Price = round(median(PriceRetail_ZeroToNA, na.rm = TRUE),
+                                       2
+                                      ),
+                         Score = round(median(Ratings.HighestScore_ZeroToNA,na.rm = TRUE),
+                                       2
+                                      )
+                        ) %>% 
+      arrange(desc(PointsPerDollar)
+             )
+    
+    } )
+
+
+#     Wine2 <- reactive( {
+#       
+#       if(input$Vintage == "Yes") {
+#         data <- group_by(filter(WineData,
+#                                 Appellation.Name != "",
+#                                 Varietal.WineType.Name %in% input$WineType
+#                                ),
+#                          Appellation.Name,
+#                          Appellation.Region.Name,
+#                          Varietal.WineType.Name,
+#                          Vintage
+#                         ) %>% 
+#           summarise(Price_Median = round(median(PriceRetail_ZeroToNA,
+#                                                 na.rm = TRUE
+#                                                ),
+#                                          2
+#                                         ),
+#                     Score_Median = round(median(Ratings.HighestScore_ZeroToNA,
+#                                                 na.rm = TRUE
+#                                                ),
+#                                          2
+#                                         ),
+#                     PointsPerDollar_Median = round(median(Ratio_ScorePrice,
+#                                                           na.rm = TRUE
+#                                                          ),
+#                                                    2
+#                                                   )
+#                    ) %>% 
+#           arrange(desc(PointsPerDollar_Median)
+#                  )
+#         }
+#       
+#       if(input$Vintage == "No") {
+#         data <- group_by(filter(WineData,
+#                                 Appellation.Name != "",
+#                                 Varietal.WineType.Name %in% input$WineType
+#                                ),
+#                          Appellation.Name,
+#                          Appellation.Region.Name,
+#                          Varietal.WineType.Name
+#                         ) %>% 
+#           summarise(Price_Median = round(median(PriceRetail_ZeroToNA,
+#                                                 na.rm = TRUE
+#                                                ),
+#                                          2
+#                                         ),
+#                     Score_Median = round(median(Ratings.HighestScore_ZeroToNA,
+#                                                 na.rm = TRUE
+#                                                ),
+#                                          2
+#                                         ),
+#                     PointsPerDollar_Median = round(median(Ratio_ScorePrice,
+#                                                           na.rm = TRUE
+#                                                          ),
+#                                                    2
+#                                                   )
+#                    ) %>% 
+#           arrange(desc(PointsPerDollar_Median)
+#                  )
+#         }
+#       
+#       return(data)
+#       
+#       }) 
+    
+  
+  
+#     renderDataTable( {filter(WineData,
+#                              Appellation.Name != "",
+#                              Varietal.WineType.Name %in% input$WineType
+#                             ) %>% 
+#         ifelse(input$Vintage == "Yes",
+#                group_by(
+#                         Appellation.Name,
+#                         Varietal.WineType.Name,
+#                         Vintage
+#                        ),
+#                group_by(
+#                         Appellation.Name,
+#                         Varietal.WineType.Name
+#                        )
+#               )
+  # } )
+
+
+  output$mytable1 <- renderDataTable( {Wine()} )  
+  # output$mytable1 <- renderDataTable( {Wine()$Medians} )
+    # output$mytable1 <- renderDataTable( {Wine2()} )
+    
+} )
+        
+ 
+
+
+shinyApp(ui     = bus_ui,
+         server = bus_server
+        )
+
+
+   # %>% 
+
+  # })
+#   Filtered <- reactive( {
+#     filter(WineData,
+#            Appellation.Name != "",
+#            Varietal.WineType.Name %in% input$WineType
+#           )
+#     }
+#     )
+  
+  # Filtered2 <- reactive ( {WineData
+#     filter(WineData,
+#            Varietal.WineType.Name == "White Wines"
+#           )
+    
+#   }
+#   )      
+
+  # Filtered3 <- head(WineData)
+                        
+                       
+  # output$mytable1 <- renderDataTable( {
+    # mtcars
+    # WineData
+    # Filtered
+    # Filtered2
+#     }
+#   )
+# }
+# )
+# 
+# shinyServer(function(input, output) {
+  # WineData <- reactive( {
+    # WineData <- 
+#       read.delim("/Users/mdturse/Desktop/WineDotComAPI/NoZeros.txt",
+#                            sep = "\t",
+#                            header = TRUE,
+#                            na.strings="NULL"
+#                           )
+#                         }
+#                        )
+# })
+  
+   # a large table, reative to input$show_vars
+#   output$mytable1 <- renderDataTable({
+#     mtcars
+#   })}
+# })
+
+# Filtered <- as.data.frame(filter(WineData,
+#                                  Appellation.Name != "",
+#                                  Varietal.WineType.Name %in% input$WineType
+#                                 )
+#                          )
+# 
+# 
+# View(MediansBy_AppelationTypeVintage)
+                          
+```
+             
+    
