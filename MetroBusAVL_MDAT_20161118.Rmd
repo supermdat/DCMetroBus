@@ -3772,6 +3772,76 @@ WaitTime_AllBus_RteHG_Vln
 ```
 
 
+X2 Percentiles Line Graph Test.
+```{r}
+
+X2_Pct <- select(WaitTime_RteCnts,
+                 Route,
+                 Stop_Zip,
+                 Event_Time_Date,
+                 Event_Time_Day,
+                 Event_Time_HrGroup,
+                 Event_Time_Hr,
+                 Latitude,
+                 Longitude,
+                 WaitTime_Min2
+                ) %>% 
+  filter(Route == "X2") %>% 
+  group_by(Event_Time_Hr,
+           Stop_Zip
+          ) %>% 
+  summarise(Pct50 = quantile(WaitTime_Min2, probs = 0.5, na.rm = TRUE),
+            Pct60 = quantile(WaitTime_Min2, probs = 0.6, na.rm = TRUE),
+            Pct70 = quantile(WaitTime_Min2, probs = 0.7, na.rm = TRUE),
+            Pct80 = quantile(WaitTime_Min2, probs = 0.8, na.rm = TRUE),
+            Pct90 = quantile(WaitTime_Min2, probs = 0.9, na.rm = TRUE)
+           )
+
+str(X2_Pct)
+View(X2_Pct)
+
+
+X2_Long <- gather(X2_Pct,
+                  key = Percentile,
+                  value = Pctile,
+                  Pct50,
+                  Pct60,
+                  Pct70,
+                  Pct80,
+                  Pct90
+                )
+
+str(X2_Long)
+View(X2_Long)
+
+
+X2_WaitByHr_Line <- ggplot(X2_Long,
+                           aes(x = Event_Time_Hr,
+                               y = Pctile,
+                               factor(Percentile),
+                               color = Percentile
+                              )
+                          ) +
+  geom_line() +
+  theme(legend.title=element_blank(),
+        legend.position = "bottom"
+       ) +
+  coord_cartesian(xlim = c(0, 23)
+                  # ylim = c(0, 45)
+                 ) + 
+  scale_x_continuous(breaks = seq(0, 23, 2)
+                    ) +
+  labs(title = "Waiting Time Throughout the Day",
+       subtitle = ("(Route X2)"),
+       x = "Hour of the Day",
+       y = "Waiting Time (min)"
+      ) +
+  facet_wrap(~Stop_Zip)
+
+X2_WaitByHr_Line
+
+```
+
 
 
 
