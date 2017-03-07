@@ -3686,13 +3686,24 @@ Rte <- select(WaitTime_RteCnts,
              ) %>% 
   filter(Route == "X2")
 
-CountValues_AllBus_RteHG <- ddply(Rte,
-                                 .(Event_Time_HrGroup),
-                                 summarise,
-                                 Value_Counts = median(WaitTime_Min2,
+CountValues_AllBus_RteHG <- group_by(Rte,
+                                     Event_Time_HrGroup
+                                    ) %>% 
+  summarise(
+                                      Value_Counts = median(WaitTime_Min2,
                                                        na.rm = TRUE
-                                                      )
-                                )
+                                                      ),
+                                      VC = quantile(WaitTime_Min2, probs = 0.9,
+                                                    na.rm = TRUE)
+                                      )
+  
+  # ddply(Rte,
+  #                                .(Event_Time_HrGroup),
+  #                                summarise,
+  #                                Value_Counts = median(WaitTime_Min2,
+  #                                                      na.rm = TRUE
+  #                                                     )
+  #                               )
 
 WaitTime_AllBus_RteHG_Box <- ggplot(Rte,
                                     aes(factor(Event_Time_HrGroup),
@@ -3712,7 +3723,7 @@ WaitTime_AllBus_RteHG_Box <- ggplot(Rte,
            ) +
   theme(legend.position="none", axis.text.x = element_text(angle=45)) +
   coord_cartesian(# xlim = c(0, 180),
-                  ylim = c(0, 45)
+                  ylim = c(0, max(CountValues_AllBus_RteHG$VC))
                  ) +
   labs(title = "Waiting Time at a Given Stop",
        subtitle = ("Route X2"),

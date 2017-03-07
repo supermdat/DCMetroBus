@@ -16,49 +16,12 @@ library("magrittr")
 library("ggplot2")
 library("shiny")
 
-bus_ui <- shinyUI(fluidPage(selectInput(inputId = "Variable1",
-                                        label = "Select your primary variable of interest.",
-                                        choices = c("Route",
-                                                    "ZipCode"
-                                                   ),
-                                        selected = NULL,
-                                        multiple = FALSE
-                                       ),
-                            conditionalPanel(
-                              condition = "input.Variable1 == 'Route'",
-                              selectInput(inputId = "Variable2",
-                                          label = "Select your secondary variable of interest",
-                                          choices = c("HourGroup",
-                                                      "ZipCode"
-                                                     )
-                                         )
-                              ),
-                     mainPanel(
-                       tabsetPanel(type = "tabs",
-                                   tabPanel("Plot",
-                                            plotOutput("plot")
-                                           ),
-                                   tabPanel("Summary",
-                                            verbatimTextOutput("summary")
-                                           ),
-                                   tabPanel("Table",
-                                            tableOutput("table")
-                                           )
-                                  )
-                       ),
-                     dataTableOutput("mytable1")
-                    )
-)
 
-
-
-bus_server <- shinyServer(function(input, output) {
-  
-  BaseData <- read.delim("Shiny_WaitData_Base.txt",
+BaseData <- read.delim("Shiny_WaitData_Base.txt",
                          sep = "\t",
                          header = TRUE,
                          na.strings=c("NA")
-                        ) %>% 
+                        ) %>%
     rename(ZipCode = Stop_Zip,
            HourGroup = Event_Time_HrGroup,
            Date = Event_Time_Date,
@@ -66,7 +29,7 @@ bus_server <- shinyServer(function(input, output) {
            Hour = Event_Time_Hr,
            WaitTime_Min = WaitTime_Min2
           )
-  
+
   # factor the relevant variables
   BaseData$ZipCode <- factor(BaseData$ZipCode)
   BaseData$Day <- factor(BaseData$Day,
@@ -80,9 +43,167 @@ bus_server <- shinyServer(function(input, output) {
                                          ),
                                ordered = TRUE
                               )
+
+
+RoutesDistinct <- distinct(select(BaseData,
+                                  Route
+                                 )
+                          ) %>%
+  arrange(Route)
+
+ZipsDistinct <- distinct(select(BaseData,
+                                ZipCode
+                                )
+                        ) %>%
+  arrange(ZipCode) %>%
+  filter(!is.na(ZipCode)
+        )
+
+
+
+bus_ui <- shinyUI(fluidPage(
   
-  %>% 
-    rename(Appellation = Appellation.Name,
+   mainPanel(
+     tabsetPanel(
+       type = "tabs",
+       
+       # The route-specific tab
+       tabPanel("Route",
+                selectInput(
+                   inputId = "Tab1Route",
+                   label = "What route(s) are you interested in?",
+                   choices = RoutesDistinct,
+                   selected = NULL,
+                   multiple = TRUE
+                   ),
+                 selectInput(
+                   inputId = "Tab1HrZip",
+                   label = "What variable(s) would you like to visualize Route by?",
+                   choices = c("HourGroup",
+                               "ZipCode",
+                               "Both"
+                              ),
+                   selected = NULL,
+                   multiple = FALSE
+                   ),
+                plotOutput(outputId = "RoutePlot")
+                ),
+       
+       # the zip-code-specific tab
+       tabPanel("ZipCode",
+                selectInput(
+                   inputId = "Tab2Zip",
+                   label = "What Zip Code(s) are you interested in?",
+                   choices = ZipsDistinct,
+                   selected = NULL,
+                   multiple = TRUE
+                   )
+               )
+       # ,
+       
+       # action button to submit the selected values above
+       # actionButton("go", "Go")
+       )
+     )
+   )
+  )
+   
+  
+ 
+
+bus_server <- shinyServer(function(input, output) {
+      RouteData <- reactive({
+      filter(BaseData,
+             Route %in% input$Tab1Route
+            )
+    })
+    
+    # rd <- eventReactive(input$go, {
+    #   RouteData()
+    #   })
+    
+  output$RoutePlot <- renderPlot({
+    
+
+    
+    CountValues_Route <- group_by(RouteData(),
+                                  HourGroup
+                                 ) %>% 
+      summarise(Pct25 = quantile(WaitTime_Min,
+                                 probs = 0.25,
+                                 na.rm = TRUE
+                                ),
+                Pct50 = quantile(WaitTime_Min,
+                                 probs = 0.50,
+                                 na.rm = TRUE
+                                ),
+                # Pct50b = median(WaitTime_Min,
+                #                 na.rm = TRUE
+                #                ),
+                Pct75 = quantile(WaitTime_Min,
+                                 probs = 0.75,
+                                 na.rm = TRUE
+                                ),
+                Pct90 = quantile(WaitTime_Min,
+                                 probs = 0.90,
+                                 na.rm = TRUE
+                                )
+              )
+    
+    ggplot(RouteData(),
+           aes(factor(HourGroup),
+               WaitTime_Min,
+               fill = factor(HourGroup)
+              )
+          ) + 
+      geom_violin(draw_quantiles = c(0.25, 0.50, 0.75),
+                  trim = TRUE,
+                  scale = "count",
+                  na.rm = TRUE,
+                  show.legend = NA,
+                  inherit.aes = TRUE
+                 ) +
+      geom_text(data = CountValues_Route,
+                aes(y = 1.1*(Pct50),
+                    label = format(round(Pct50, digits = 1),
+                                   nsmall = 1
+                                  )
+                   ),
+                size = 2.5,
+                vjust = -0.5
+               ) +
+      theme(legend.position="none",
+            axis.text.x = element_text(angle=45)
+           ) +
+      coord_cartesian(# xlim = c(0, 180),
+                      ylim = c(0, #max(CountValues_Route$Pct90)
+                               3.0*(max(CountValues_Route$Pct75, na.rm = TRUE) -
+                                      min(CountValues_Route$Pct25, na.rm = TRUE)
+                                   )
+                              )
+                     ) +
+      labs(title = "Waiting Time at a Given Stop",
+           # subtitle = (paste0("(", input$Tab1Route, ")")),
+           x = "Hour Group",
+           y = "Waiting Time (min)"
+          )
+  })
+})
+  
+
+
+shinyApp(ui     = bus_ui,
+         server = bus_server
+        )
+
+
+
+  # str(BaseData)
+  
+  
+  
+    rename(BaseData,
+           Appellation = Appellation.Name,
            Region = Appellation.Region.Name,
            Varietal = Varietal.WineType.Name
           ) %>% 
@@ -90,7 +211,7 @@ bus_server <- shinyServer(function(input, output) {
            Appellation != "Unknown" &
            Region != "Unknown"
           )
-# str(BaseData)
+
     
   Wine <- reactive( {
 
@@ -266,9 +387,6 @@ bus_server <- shinyServer(function(input, output) {
  
 
 
-shinyApp(ui     = bus_ui,
-         server = bus_server
-        )
 
 
    # %>% 
