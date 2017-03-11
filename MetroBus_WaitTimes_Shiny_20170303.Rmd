@@ -67,53 +67,53 @@ ZipsDistinct <- distinct(select(BaseData,
 ##### UI Begins Here #####
 bus_ui <- shinyUI(fluidPage(
   
-   mainPanel(
-     tabsetPanel(
-       type = "tabs",
-       
-       # The route-specific tab
-       tabPanel("Route",
-                selectInput(
-                   inputId = "Tab1Route",
-                   label = "What route(s) are you interested in?",
-                   choices = RoutesDistinct,
-                   selected = NULL,
-                   multiple = TRUE
-                   ),
-                 selectInput(
-                   inputId = "Tab1HrZip",
-                   label = "What variable(s) would you like to visualize Route by?",
-                   choices = c("Hour",
-                               "ZipCode",
-                               "Both"
-                              ),
-                   selected = NULL,
-                   multiple = FALSE
-                   ),
-                plotOutput(outputId = "RoutePlot")
-                ),
-       
-       # the zip-code-specific tab
-       tabPanel("ZipCode",
-                selectInput(
-                   inputId = "Tab2Zip",
-                   label = "What Zip Code(s) are you interested in?",
-                   choices = ZipsDistinct,
-                   selected = NULL,
-                   multiple = TRUE
-                   ),
-                plotOutput(outputId = "ZipPlot")
+  mainPanel(
+    tabsetPanel(
+      type = "tabs",
+      
+      # The route-specific tab
+      tabPanel("Route",
+               selectInput(
+                 inputId = "Tab1Route",
+                 label = "What route(s) are you interested in?",
+                 choices = RoutesDistinct,
+                 selected = NULL,
+                 multiple = TRUE
+                 ),
+               selectInput(
+                 inputId = "Tab1HrZip",
+                 label = "What variable(s) would you like to visualize Route by?",
+                 choices = c("Hour",
+                             "ZipCode",
+                             "Both"
+                            ),
+                 selected = NULL,
+                 multiple = FALSE
+                 ),
+               actionButton(inputId = "Tab1Action",
+                            label = "Get the Viz"
+                           ),
+               plotOutput(outputId = "RoutePlot")
+               ),
+      
+      # the zip-code-specific tab
+      tabPanel("ZipCode",
+               selectInput(
+                 inputId = "Tab2Zip",
+                 label = "What Zip Code(s) are you interested in?",
+                 choices = ZipsDistinct,
+                 selected = NULL,
+                 multiple = TRUE
+                 ),
+               actionButton(inputId = "Tab2Action",
+                            label = "Get the Viz"
+                           ),
+               plotOutput(outputId = "ZipPlot")
                )
-               )
-       # ,
-       
-       # action button to submit the selected values above
-       # actionButton(inputId = "go",
-       #              label = "Go"
-       #             )
-       )
-     )
-   )
+      )
+    )
+  )
+  )
 
    
   
@@ -123,45 +123,19 @@ bus_ui <- shinyUI(fluidPage(
 ##### Server Begins Here #####
 bus_server <- shinyServer(function(input, output) {
   
-      # RouteData <- reactive({
-      #   filter(BaseData,
-      #          Route %in% input$Tab1Route
-      #         )
-      #   })
-      
-      # RouteData <- reactive({
-      #   input$go
-      #   isolate({
-      #   filter(BaseData,
-      #          Route %in% input$Tab1Route
-      #         )
-      #     })
-      #   })
-      
-      # RouteData <- observeEvent(input$go, {
-      #   filter(BaseData,
-      #          Route %in% input$Tab1Route
-      #         )
-      #   })
-      
-      # RouteData <- eventReactive(input$go, {
-      #   filter(BaseData,
-      #          Route %in% input$Tab1Route
-      #         )
-      #   })
+  output$RoutePlot <- renderPlot({
     
-  
-      output$RoutePlot <- renderPlot({
-
-         RouteData <- reactive({
+    input$Tab1Action
+    isolate({
+      
+      RouteData <- reactive({
         filter(BaseData,
                Route %in% input$Tab1Route
               )
         })
-
-  #       # input$go
-
-    if(input$Tab1HrZip == "Hour"){
+      
+      if(input$Tab1HrZip == "Hour"){
+        
            HourData <- group_by(RouteData(),
                                 Hour
                                ) %>%
@@ -171,7 +145,7 @@ bus_server <- shinyServer(function(input, output) {
                        Pct80 = quantile(WaitTime_Min, probs = 0.8, na.rm = TRUE),
                        Pct90 = quantile(WaitTime_Min, probs = 0.9, na.rm = TRUE)
                       )
-
+           
            HourData_Long <- gather(HourData,
                                    key = Percentile,
                                    value = Pctile,
@@ -181,6 +155,11 @@ bus_server <- shinyServer(function(input, output) {
                                    Pct80,
                                    Pct90
                                   )
+           
+           HourData_Long$Percentile <- 
+             factor(HourData_Long$Percentile,
+                    levels = c("Pct90","Pct80","Pct70", "Pct60", "Pct50")
+                   )
            
            Y_Lim <- (((max(HourData$Pct90, na.rm = TRUE)) %/% 10) + 1
                      ) * 10
@@ -193,7 +172,7 @@ bus_server <- shinyServer(function(input, output) {
                      )
                  ) +
              geom_line() +
-             theme(legend.title = element_blank(),
+             theme(#legend.title = element_blank(),
                    legend.position = "right"
                   ) +
              coord_cartesian(xlim = c(0, 23),
@@ -207,186 +186,199 @@ bus_server <- shinyServer(function(input, output) {
                   # subtitle = ("(Route X2)"),
                   x = "Hour of the Day",
                   y = "Waiting Time (min)"
-                  )
-
-    }
-
-    else if(input$Tab1HrZip == "ZipCode"){
-
-           CountValues_Route <- group_by(RouteData(),
-                                  ZipCode
-                                 ) %>%
-      summarise(Pct25 = quantile(WaitTime_Min,
-                                 probs = 0.25,
-                                 na.rm = TRUE
-                                ),
-                Pct50 = quantile(WaitTime_Min,
-                                 probs = 0.50,
-                                 na.rm = TRUE
-                                ),
-                # Pct50b = median(WaitTime_Min,
-                #                 na.rm = TRUE
-                #                ),
-                Pct75 = quantile(WaitTime_Min,
-                                 probs = 0.75,
-                                 na.rm = TRUE
-                                ),
-                Pct90 = quantile(WaitTime_Min,
-                                 probs = 0.90,
-                                 na.rm = TRUE
-                                )
-              )
-
-    ggplot(RouteData(),
-           aes(factor(ZipCode),
-               WaitTime_Min,
-               fill = factor(ZipCode)
-              )
-          ) +
-      geom_violin(draw_quantiles = c(0.25, 0.50, 0.75),
-                  trim = TRUE,
-                  scale = "count",
-                  na.rm = TRUE,
-                  show.legend = NA,
-                  inherit.aes = TRUE
-                 ) +
-      geom_text(data = CountValues_Route,
-                aes(y = 1.1*(Pct50),
-                    label = format(round(Pct50, digits = 1),
-                                   nsmall = 1
-                                  )
-                   ),
-                size = 2.5,
-                vjust = -0.5
-               ) +
-      theme(legend.position="none",
-            axis.text.x = element_text(angle=45)
-           ) +
-      coord_cartesian(# xlim = c(0, 180),
-                      ylim = c(0, #max(CountValues_Route$Pct90)
-                               3.0*(max(CountValues_Route$Pct75, na.rm = TRUE) -
-                                      min(CountValues_Route$Pct25, na.rm = TRUE)
-                                   )
-                              )
-                     ) +
-      labs(title = "Waiting Time by Zip Code",
-           # subtitle = (paste0("(", input$Tab1Route, ")")),
-           x = "Zip Code",
-           y = "Waiting Time (min)"
-      )
-    }
-
-    else if(input$Tab1HrZip == "Both"){
-      HourData <- group_by(RouteData(),
-                                Hour,
-                                ZipCode
-                               ) %>%
-             summarise(Pct50 = quantile(WaitTime_Min, probs = 0.5, na.rm = TRUE),
-                       Pct60 = quantile(WaitTime_Min, probs = 0.6, na.rm = TRUE),
-                       Pct70 = quantile(WaitTime_Min, probs = 0.7, na.rm = TRUE),
-                       Pct80 = quantile(WaitTime_Min, probs = 0.8, na.rm = TRUE),
-                       Pct90 = quantile(WaitTime_Min, probs = 0.9, na.rm = TRUE)
-                      )
-
-           HourData_Long <- gather(HourData,
-                                   key = Percentile,
-                                   value = Pctile,
-                                   Pct50,
-                                   Pct60,
-                                   Pct70,
-                                   Pct80,
-                                   Pct90
-                                  )
-           
-           Y_Lim <- (((max(HourData$Pct90, na.rm = TRUE)) %/% 10) + 1
-                     ) * 10
-
-           ggplot(HourData_Long,
-                  aes(x = Hour,
-                      y = Pctile,
-                      factor(Percentile),
-                      color = Percentile
-                     )
-                 ) +
-             geom_line() +
-             theme(legend.title = element_blank(),
-                   legend.position = "right"
-                  ) +
-             coord_cartesian(xlim = c(0, 23),
-                             ylim = c(0, Y_Lim)
-                            ) +
-             scale_x_continuous(breaks = seq(0, 23, 2)
-                               ) +
-             scale_y_continuous(breaks = seq(0, Y_Lim, 20)
-                               ) +
-             labs(title = "Waiting Time Throughout the Day",
-                  # subtitle = ("(Route X2)"),
-                  x = "Hour of the Day",
-                  y = "Waiting Time (min)"
-                  ) +
-             facet_wrap(~ZipCode)
-    }
-
-  })
+             )
+           }
       
-      output$ZipPlot <- renderPlot({
+      else if(input$Tab1HrZip == "ZipCode"){
         
-        ZipData <- reactive({
-           filter(BaseData,
-                  ZipCode %in% input$Tab2Zip
-                 )
-          })
+        CountValues_Route <- group_by(RouteData(),
+                                      ZipCode
+                                     ) %>%
+          summarise(Pct25 = quantile(WaitTime_Min,
+                                     probs = 0.25,
+                                     na.rm = TRUE
+                                    ),
+                    Pct50 = quantile(WaitTime_Min,
+                                     probs = 0.50,
+                                     na.rm = TRUE
+                                    ),
+                    Pct75 = quantile(WaitTime_Min,
+                                     probs = 0.75,
+                                     na.rm = TRUE
+                                    ),
+                    Pct90 = quantile(WaitTime_Min,
+                                     probs = 0.90,
+                                     na.rm = TRUE
+                                    )
+                    )
         
-        # input$go
-
-           HourData_Zip <- group_by(ZipData(),
-                                    Hour
-                                   ) %>%
-             summarise(Pct50 = quantile(WaitTime_Min, probs = 0.5, na.rm = TRUE),
-                       Pct60 = quantile(WaitTime_Min, probs = 0.6, na.rm = TRUE),
-                       Pct70 = quantile(WaitTime_Min, probs = 0.7, na.rm = TRUE),
-                       Pct80 = quantile(WaitTime_Min, probs = 0.8, na.rm = TRUE),
-                       Pct90 = quantile(WaitTime_Min, probs = 0.9, na.rm = TRUE)
-           ) 
-           
-           Y_Lim <- (((max(HourData_Zip$Pct90, na.rm = TRUE)) %/% 10) + 1
-                     ) * 10
-           
-           HourData_Zip_Long <- gather(HourData_Zip,
-                                   key = Percentile,
-                                   value = Pctile,
-                                   Pct50,
-                                   Pct60,
-                                   Pct70,
-                                   Pct80,
-                                   Pct90
-                                  )
-           
-           ggplot(HourData_Zip_Long,
-                  aes(x = Hour,
-                      y = Pctile,
-                      factor(Percentile),
-                      color = Percentile
+        Y_Lim <- 3.0*(max(CountValues_Route$Pct75, na.rm = TRUE) -
+                        min(CountValues_Route$Pct25, na.rm = TRUE)
                      )
-                 ) +
-             geom_line() +
-             theme(legend.title = element_blank(),
-                   legend.position = "right"
-                  ) +
-             coord_cartesian(xlim = c(0, 23),
-                             ylim = c(0, Y_Lim)
-                            ) +
-             scale_x_continuous(breaks = seq(0, 23, 2)
-                               ) +
-             scale_y_continuous(breaks = seq(0, Y_Lim, 20)
-                               ) +
-             labs(title = "Waiting Time Throughout the Day",
-                  # subtitle = ("(Route X2)"),
-                  x = "Hour of the Day",
-                  y = "Waiting Time (min)"
+        
+        ggplot(RouteData(),
+               aes(factor(ZipCode),
+                   WaitTime_Min,
+                   fill = factor(ZipCode)
                   )
-           }) 
+              ) +
+          geom_violin(draw_quantiles = c(0.25, 0.50, 0.75),
+                      trim = TRUE,
+                      scale = "count",
+                      na.rm = TRUE,
+                      show.legend = NA,
+                      inherit.aes = TRUE
+                     ) +
+          geom_text(data = CountValues_Route,
+                    aes(y = (1.2 * Pct50),
+                        label = format(round(Pct50, digits = 1),
+                                       nsmall = 1
+                                      )
+                       ),
+                    size = 3.0
+                   ) +
+          theme(legend.position="none",
+                axis.text.x = element_text(angle = 45)
+               ) +
+          coord_cartesian(# xlim = c(0, 180),
+                          ylim = c(0, Y_Lim)
+                         ) +
+          labs(title = "Waiting Time by Zip Code",
+               subtitle = "(horizontal bars are 25th, 50th, & 75th percentiles)",
+               x = "Zip Code",
+               y = "Waiting Time (min)"
+              )
+        }
+      
+      else if(input$Tab1HrZip == "Both"){
+        
+        HourData <- group_by(RouteData(),
+                             Hour,
+                             ZipCode
+                            ) %>%
+          summarise(Pct50 = quantile(WaitTime_Min, probs = 0.5, na.rm = TRUE),
+                    Pct60 = quantile(WaitTime_Min, probs = 0.6, na.rm = TRUE),
+                    Pct70 = quantile(WaitTime_Min, probs = 0.7, na.rm = TRUE),
+                    Pct80 = quantile(WaitTime_Min, probs = 0.8, na.rm = TRUE),
+                    Pct90 = quantile(WaitTime_Min, probs = 0.9, na.rm = TRUE)
+                   )
+        
+        HourData_Long <- gather(HourData,
+                                key = Percentile,
+                                value = Pctile,
+                                Pct50,
+                                Pct60,
+                                Pct70,
+                                Pct80,
+                                Pct90
+                               )
+        
+        HourData_Long$Percentile <- 
+          factor(HourData_Long$Percentile,
+                 levels = c("Pct90","Pct80","Pct70", "Pct60", "Pct50")
+                )
+        
+        Y_Lim <- (((max(HourData$Pct90, na.rm = TRUE)
+                   ) %/% 10
+                  ) + 1
+                 ) * 10
+        
+        ggplot(HourData_Long,
+               aes(x = Hour,
+                   y = Pctile,
+                   factor(Percentile),
+                   color = Percentile
+                  )
+              ) +
+          geom_line() +
+          theme(# legend.title = element_blank(),
+                legend.position = "right"
+               ) +
+          coord_cartesian(xlim = c(0, 23),
+                          ylim = c(0, Y_Lim)
+                         ) +
+          scale_x_continuous(breaks = seq(0, 23, 2)
+                            ) +
+          scale_y_continuous(breaks = seq(0, Y_Lim, 20)
+                            ) +
+          labs(title = "Waiting Time Throughout the Day",
+               # subtitle = ("(Route X2)"),
+               x = "Hour of the Day",
+               y = "Waiting Time (min)"
+              ) +
+          facet_wrap(~ZipCode)
+        }
       })
+    })
+  
+  
+  output$ZipPlot <- renderPlot({
+    
+    input$Tab2Action
+    isolate({
+      
+      ZipData <- reactive({
+        filter(BaseData,
+               ZipCode %in% input$Tab2Zip
+              )
+        })
+      
+      HourData_Zip <- group_by(ZipData(),
+                               Hour
+                              ) %>%
+        summarise(Pct50 = quantile(WaitTime_Min, probs = 0.5, na.rm = TRUE),
+                  Pct60 = quantile(WaitTime_Min, probs = 0.6, na.rm = TRUE),
+                  Pct70 = quantile(WaitTime_Min, probs = 0.7, na.rm = TRUE),
+                  Pct80 = quantile(WaitTime_Min, probs = 0.8, na.rm = TRUE),
+                  Pct90 = quantile(WaitTime_Min, probs = 0.9, na.rm = TRUE)
+                 )
+      
+      Y_Lim <- (((max(HourData_Zip$Pct90, na.rm = TRUE)
+                 ) %/% 10
+                ) + 1
+               ) * 10
+      
+      HourData_Zip_Long <- gather(HourData_Zip,
+                                  key = Percentile,
+                                  value = Pctile,
+                                  Pct50,
+                                  Pct60,
+                                  Pct70,
+                                  Pct80,
+                                  Pct90
+                                 )
+      
+      HourData_Zip_Long$Percentile <- 
+        factor(HourData_Zip_Long$Percentile,
+               levels = c("Pct90","Pct80","Pct70", "Pct60", "Pct50")
+              )
+      
+      ggplot(HourData_Zip_Long,
+             aes(x = Hour,
+                 y = Pctile,
+                 factor(Percentile),
+                 color = Percentile
+                )
+            ) +
+        geom_line() +
+        theme(#legend.title = element_blank(),
+              legend.position = "right"
+             ) +
+        coord_cartesian(xlim = c(0, 23),
+                        ylim = c(0, Y_Lim)
+                       ) +
+        scale_x_continuous(breaks = seq(0, 23, 2)
+                          ) +
+        scale_y_continuous(breaks = seq(0, Y_Lim, 20)
+                          ) +
+        labs(title = "Waiting Time Throughout the Day",
+             subtitle = ("(Route X2)"),
+             # x = "Hour of the Day",
+             y = "Waiting Time (min)"
+            )
+      })
+    }) 
+  })
 
 
 shinyApp(ui     = bus_ui,
@@ -396,259 +388,7 @@ shinyApp(ui     = bus_ui,
 
   # str(BaseData)
   
-  
-
-
-
-
-
-  
-    rename(BaseData,
-           Appellation = Appellation.Name,
-           Region = Appellation.Region.Name,
-           Varietal = Varietal.WineType.Name
-          ) %>% 
-    filter(Appellation != "" &
-           Appellation != "Unknown" &
-           Region != "Unknown"
-          )
-
-    
-  Wine <- reactive( {
-
-
-    Filter_Wine <- filter(WineData,
-                          Varietal %in% input$WineType
-                         )
-
-#     Filter_Vintage <- ifelse(input$Vintage == "Yes",
-#                              group_by(Filter_Wine,
-#                                       Appellation.Name,
-#                                       Varietal.WineType.Name,
-#                                       Vintage
-#                                      ),
-#                              group_by(Filter_Wine,
-#                                       Appellation.Name,
-#                                       Varietal.WineType.Name
-#                                      )
-#                             )
-    
-    Filter_Vintage2 <- switch(input$Vintage,
-                              "Yes" = group_by(Filter_Wine,
-                                               Appellation,
-                                               Region,
-                                               Varietal,
-                                               Vintage
-                                               ),
-                              "No" = group_by(Filter_Wine,
-                                              Appellation,
-                                              Region,
-                                              Varietal
-                                             )
-                             )
-
-#     switch(input$Vintage,
-#            "Yes" = Filter_Vintage3 <- group_by(Filter_Wine,
-#                                                Appellation.Name,
-#                                                Varietal.WineType.Name,
-#                                                Vintage
-#                                                ),
-#            "No" = Filter_Vintage3 <- group_by(Filter_Wine,
-#                                               Appellation.Name,
-#                                               Varietal.WineType.Name
-#                                              )
-#           )
-    
-#       if(input$Vintage == "Yes") {
-#         Wine$d1 <- group_by(Filter_Wine,
-#                          Appellation.Name,
-#                          Varietal.WineType.Name,
-#                          Vintage
-#                         )
-#         }
-#       if(input$Vintage == "No") {
-#         Wine$d1 <- group_by(Filter_Wine,
-#                          Appellation.Name,
-#                          Varietal.WineType.Name
-#                         )
-#         }
-#       return(d1)
-    
-    # FilterTable <- as.data.frame(Filter_Wine)
-    # FilterTable2 <- as.data.frame(Filter_Vintage2)
-
-    Medians <- summarise(Filter_Vintage2,
-                         PointsPerDollar = round(median(Ratio_ScorePrice, na.rm = TRUE),
-                                                 2
-                                                ),
-                         Price = round(median(PriceRetail_ZeroToNA, na.rm = TRUE),
-                                       2
-                                      ),
-                         Score = round(median(Ratings.HighestScore_ZeroToNA,na.rm = TRUE),
-                                       2
-                                      )
-                        ) %>% 
-      arrange(desc(PointsPerDollar)
-             )
-    
-    } )
-
-
-#     Wine2 <- reactive( {
-#       
-#       if(input$Vintage == "Yes") {
-#         data <- group_by(filter(WineData,
-#                                 Appellation.Name != "",
-#                                 Varietal.WineType.Name %in% input$WineType
-#                                ),
-#                          Appellation.Name,
-#                          Appellation.Region.Name,
-#                          Varietal.WineType.Name,
-#                          Vintage
-#                         ) %>% 
-#           summarise(Price_Median = round(median(PriceRetail_ZeroToNA,
-#                                                 na.rm = TRUE
-#                                                ),
-#                                          2
-#                                         ),
-#                     Score_Median = round(median(Ratings.HighestScore_ZeroToNA,
-#                                                 na.rm = TRUE
-#                                                ),
-#                                          2
-#                                         ),
-#                     PointsPerDollar_Median = round(median(Ratio_ScorePrice,
-#                                                           na.rm = TRUE
-#                                                          ),
-#                                                    2
-#                                                   )
-#                    ) %>% 
-#           arrange(desc(PointsPerDollar_Median)
-#                  )
-#         }
-#       
-#       if(input$Vintage == "No") {
-#         data <- group_by(filter(WineData,
-#                                 Appellation.Name != "",
-#                                 Varietal.WineType.Name %in% input$WineType
-#                                ),
-#                          Appellation.Name,
-#                          Appellation.Region.Name,
-#                          Varietal.WineType.Name
-#                         ) %>% 
-#           summarise(Price_Median = round(median(PriceRetail_ZeroToNA,
-#                                                 na.rm = TRUE
-#                                                ),
-#                                          2
-#                                         ),
-#                     Score_Median = round(median(Ratings.HighestScore_ZeroToNA,
-#                                                 na.rm = TRUE
-#                                                ),
-#                                          2
-#                                         ),
-#                     PointsPerDollar_Median = round(median(Ratio_ScorePrice,
-#                                                           na.rm = TRUE
-#                                                          ),
-#                                                    2
-#                                                   )
-#                    ) %>% 
-#           arrange(desc(PointsPerDollar_Median)
-#                  )
-#         }
-#       
-#       return(data)
-#       
-#       }) 
-    
-  
-  
-#     renderDataTable( {filter(WineData,
-#                              Appellation.Name != "",
-#                              Varietal.WineType.Name %in% input$WineType
-#                             ) %>% 
-#         ifelse(input$Vintage == "Yes",
-#                group_by(
-#                         Appellation.Name,
-#                         Varietal.WineType.Name,
-#                         Vintage
-#                        ),
-#                group_by(
-#                         Appellation.Name,
-#                         Varietal.WineType.Name
-#                        )
-#               )
-  # } )
-
-
-  output$mytable1 <- renderDataTable( {Wine()} )  
-  # output$mytable1 <- renderDataTable( {Wine()$Medians} )
-    # output$mytable1 <- renderDataTable( {Wine2()} )
-    
-} )
-        
- 
-
-
-
-
-   # %>% 
-
-  # })
-#   Filtered <- reactive( {
-#     filter(WineData,
-#            Appellation.Name != "",
-#            Varietal.WineType.Name %in% input$WineType
-#           )
-#     }
-#     )
-  
-  # Filtered2 <- reactive ( {WineData
-#     filter(WineData,
-#            Varietal.WineType.Name == "White Wines"
-#           )
-    
-#   }
-#   )      
-
-  # Filtered3 <- head(WineData)
-                        
-                       
-  # output$mytable1 <- renderDataTable( {
-    # mtcars
-    # WineData
-    # Filtered
-    # Filtered2
-#     }
-#   )
-# }
-# )
-# 
-# shinyServer(function(input, output) {
-  # WineData <- reactive( {
-    # WineData <- 
-#       read.delim("/Users/mdturse/Desktop/WineDotComAPI/NoZeros.txt",
-#                            sep = "\t",
-#                            header = TRUE,
-#                            na.strings="NULL"
-#                           )
-#                         }
-#                        )
-# })
-  
-   # a large table, reative to input$show_vars
-#   output$mytable1 <- renderDataTable({
-#     mtcars
-#   })}
-# })
-
-# Filtered <- as.data.frame(filter(WineData,
-#                                  Appellation.Name != "",
-#                                  Varietal.WineType.Name %in% input$WineType
-#                                 )
-#                          )
-# 
-# 
-# View(MediansBy_AppelationTypeVintage)
-                          
+               
 ```
              
     
