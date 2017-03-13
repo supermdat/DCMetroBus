@@ -26,8 +26,11 @@ library("data.table")
 library("lubridate")
 library("geosphere")
 library("ggplot2")
+library("ggmap")
 library("ggvis")
 library("rbokeh")
+library("rgdal")
+library("maptools")
 
 ```
 
@@ -3888,6 +3891,89 @@ write.table(Shiny_WaitData_Base,
 
 ```
 
+
+
+Testing mapping functionaltiy
+```{r}
+
+# devtools::install_github("dkahle/ggmap")
+# devtools::install_github("hadley/ggplot2")
+# install.packages("ggmap", type = "source")
+
+# devtools::install_github('hadley/ggplot2')
+devtools::install_github("hadley/ggplot2@v2.2.0")
+# devtools::install_github('thomasp85/ggforce')
+# devtools::install_github('thomasp85/ggraph')
+# devtools::install_github('slowkow/ggrepel')
+
+
+
+
+
+
+
+tract <- 
+  readOGR(dsn = "/Users/mdturse/Desktop/Analytics/DCMetroBus/cb_2015_11_tract_500k",
+          layer = "cb_2015_11_tract_500k"
+         )
+  
+class(tract)
+
+
+# convert the GEOID to a character
+tract@data$GEOID <- as.character(tract@data$GEOID)
+
+str(tract@data)
+
+
+
+ggtract <- tidy(tract)#, region = "GEOID")
+str(ggtract)
+summary(ggtract)
+
+
+
+map <- get_map(location = c(lon = -77.03676, lat = 38.89784),
+               source = "google",
+               # maptype = "roadmap"
+               zoom = 12
+              )
+
+ggmap(map) +
+  geom_polygon(aes(x = long, y = lat, group = group), 
+               data = ggtract,
+               colour = 'white', 
+               fill = 'black', 
+               alpha = .4, 
+               size = .3
+              )
+  
+
+
+
+
+
+
+ZipWaitTest <- filter(Shiny_WaitData_Base,
+                      WaitTime_Min2 <= 180 &
+                        !is.na(Stop_Zip)
+                     ) %>% 
+  group_by(Stop_Zip,
+           Event_Time_Hr
+          ) %>% 
+  summarise(Pct80 = quantile(WaitTime_Min2, probs = 0.8, na.rm = TRUE)
+           ) %>% 
+  arrange(Event_Time_Hr,
+          Stop_Zip
+         )
+
+
+View(head(ZipWaitTest, 500))
+
+
+
+
+```
 
 
 Investigating TravelTime_Sec.
