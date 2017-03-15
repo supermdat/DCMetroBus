@@ -13,15 +13,21 @@ library("tidyr")
 library("plyr")
 library("dplyr")
 library("magrittr")
+library("lubridate")
 library("ggplot2")
 library("ggmap")
+library("rgdal")
+library("broom")
+library("maptools")
+library("rgeos")
 library("shiny")
+# runExample("05_sliders")
 
-
+# BaseData for line plots and violin plots
 BaseData <- read.delim("Shiny_WaitData_Base.txt",
                          sep = "\t",
                          header = TRUE,
-                         na.strings=c("NA")
+                         na.strings = c("NA")
                         ) %>%
     rename(ZipCode = Stop_Zip,
            HourGroup = Event_Time_HrGroup,
@@ -61,6 +67,39 @@ ZipsDistinct <- distinct(select(BaseData,
   filter(!is.na(ZipCode)
         )
 
+
+# MapData for mapping
+MapData <- read.delim("Shiny_WaitData_Map.txt",
+                      sep = "\t",
+                      header = TRUE,
+                      na.strings = c("NA")
+                     ) %>%
+    rename(ZipCode = Stop_Zip,
+           YrMthDayHr = Event_Time_YrMthDayHr,
+           YrMthDay = Event_Time_DateNew,
+           Hour = Event_Time_HrNew
+          )
+
+# format the relevant variables
+MapData$YrMthDayHr <- ymd_hms(MapData$YrMthDayHr)
+MapData$YrMthDay <- ymd(MapData$YrMthDay)
+MapData$piece <- factor(MapData$piece)
+MapData$group <- factor(MapData$group)
+
+# str(MapData)
+# 
+# View(head(filter(MapData,
+#                  Hour == 15
+#                 ),
+#           500
+#          )
+#     )
+
+MapBase <- get_map(location = c(lon = -77.03676, lat = 38.89784),
+                   source = "google",
+                   # maptype = "roadmap"
+                   zoom = 12
+                  )
 
 
 ##### UI Begins Here #####
@@ -110,7 +149,24 @@ bus_ui <- shinyUI(fluidPage(
                             label = "Get the Viz"
                            ),
                plotOutput(outputId = "ZipPlot")
-               )
+               ),
+      
+      # The mapping tab
+      tabPanel("Map",
+               # Animation with custom interval (in ms) to control speed, plus looping
+               sliderInput(inputId = "MapAnimation",
+                           label = "Date-Hour",
+                           min = as.POSIXct("2016-10-03 00:00:00"),
+                           max = as.POSIXct("2016-10-07 23:00:00"),
+                           value = as.POSIXct("2016-10-03 00:00:00"),
+                           # step = "hour",
+                           timeFormat = "%F %T",
+                           animate = animationOptions(interval = 8000,
+                                                      loop = TRUE
+                                                     )
+                          ),
+               plotOutput(outputId = "MapPlot")
+              )
       )
     )
   )
@@ -378,7 +434,78 @@ bus_server <- shinyServer(function(input, output) {
              y = "Waiting Time (min)"
             )
       })
-    }) 
+    })
+  
+  
+  output$MapPlot <- renderPlot({
+    
+    # input$Tab2Action
+    # isolate({
+      
+      MapData_FilterHr <- reactive({
+        filter(MapData,
+               YrMthDayHr == input$MapAnimation
+              )
+        })
+      
+      # HourData_Zip <- group_by(ZipData(),
+      #                          Hour
+      #                         ) %>%
+      #   summarise(Pct50 = quantile(WaitTime_Min, probs = 0.5, na.rm = TRUE),
+      #             Pct60 = quantile(WaitTime_Min, probs = 0.6, na.rm = TRUE),
+      #             Pct70 = quantile(WaitTime_Min, probs = 0.7, na.rm = TRUE),
+      #             Pct80 = quantile(WaitTime_Min, probs = 0.8, na.rm = TRUE),
+      #             Pct90 = quantile(WaitTime_Min, probs = 0.9, na.rm = TRUE)
+      #            )
+      # 
+      # Y_Lim <- (((max(HourData_Zip$Pct90, na.rm = TRUE)
+      #            ) %/% 10
+      #           ) + 1
+      #          ) * 10
+      # 
+      # HourData_Zip_Long <- gather(HourData_Zip,
+      #                             key = Percentile,
+      #                             value = Pctile,
+      #                             Pct50,
+      #                             Pct60,
+      #                             Pct70,
+      #                             Pct80,
+      #                             Pct90
+      #                            )
+      # 
+      # HourData_Zip_Long$Percentile <- 
+      #   factor(HourData_Zip_Long$Percentile,
+      #          levels = c("Pct90","Pct80","Pct70", "Pct60", "Pct50")
+      #         )
+      
+      ggmap(MapBase) +
+        geom_polygon(aes(x = long,
+                         y = lat,
+                         group = group,
+                         fill = factor(Pct80_Level)
+                        ),
+                     data = MapData_FilterHr(),
+                     colour = "gray1",
+                     # fill = 'black',
+                     alpha = .4,
+                     size = .3
+                    ) +
+# +
+  # scale_fill_gradientn(colours = c("white", "royalblue4", "red"),
+  #                      #  "lightsteelblue4",
+  #                      # "lightpink1",
+  #                      # values=cbPalette,
+  #                      # values = c(1,0.5, .3, .2, .1, 0)
+  #                      na.value = "black",
+  #                      breaks = c(seq(0, 180, 30))
+  #                      # values = rescale()
+  #                     ) 
+# +
+      scale_fill_brewer(palette = "Spectral", # "YlOrRd" # "Set1",
+                        direction = -1
+                       )
+      })
+  
   })
 
 
