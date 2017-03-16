@@ -3939,9 +3939,9 @@ str(tract@data)
 ggtract <- tidy(tract, region = "GEOID")
 # rm(tract)
 # ggtract <- fortify(tract, region = "GEOID")
-str(ggtract)
-summary(ggtract)
-View(head(ggtract, 50))
+# str(ggtract)
+# summary(ggtract)
+# View(head(ggtract, 50))
 
 
 
@@ -3965,22 +3965,23 @@ ZipWaitTest <- filter(Shiny_WaitData_Base,
   mutate(Event_Time_DateNew = floor_date(Event_Time_YrMthDayHr, "day"),
          Event_Time_HrNew = hour(Event_Time_YrMthDayHr),
          Pct80_Level = factor(ifelse(Pct80 < 10,
-                                     "0s",
+                                     "Below 10",
                               ifelse(Pct80 < 20,
-                                     "10s",
+                                     "Below 20",
                               ifelse(Pct80 < 30,
-                                     "20s",
+                                     "Below 30",
                               ifelse(Pct80 < 40,
-                                     "30s",
+                                     "Below 40",
                               ifelse(Pct80 < 50,
-                                     "40s",
+                                     "Below 50",
                               ifelse(Pct80 < 60,
-                                     "50s",
-                                     "Over60"
+                                     "Below 60",
+                                     "60 Plus"
                                     )))))),
-                              levels = c("0s", "10s", "20s", 
-                                         "30s", "40s", "50s", "Over60"
-                                        )
+                              levels = c("Below 10", "Below 20", "Below 30", 
+                                         "Below 40", "Below 50", "Below 60", "60 Plus"
+                                        ),
+                              ordered = TRUE
                              )
         )
 
@@ -4012,6 +4013,13 @@ View(head(filter(StopZip_Left,
           500
          )
     )
+
+write.table(StopZip_Left,
+            "Shiny_WaitData_Map.txt",
+            quote = FALSE,
+            sep = "\t",
+            row.names = FALSE
+           )
 
 
 
@@ -4057,12 +4065,7 @@ ggmap(map) +
 
 
 
-write.table(StopZip_Left,
-            "Shiny_WaitData_Map.txt",
-            quote = FALSE,
-            sep = "\t",
-            row.names = FALSE
-           )
+
 
 ```
 
