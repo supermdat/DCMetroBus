@@ -33,9 +33,12 @@ library("rgdal")
 library("broom")
 library("maptools")
 library("rgeos")
+library("fpc")
+library("dbscan")
 # library("gpclib")
 # install.packages('rgeos', type='source')
 # install.packages('rgdal', type='source')
+# install.packages("dbscan")
 
 ```
 
@@ -4098,6 +4101,39 @@ ggmap(map) +
 ```
 
 
+Clustering
+```{r}
+
+str(WaitTime_RteCnts)
+
+ClustData <- select(WaitTime_RteCnts,
+                    group,
+                    BusDay_EventNum,
+                    Route,
+                    RteChange2,
+                    RouteAlt,
+                    DirChange2,
+                    Route_Direction,
+                    Stop_Sequence,
+                    StopID_Indicator,
+                    Stop_County,
+                    Stop_City,
+                    Stop_Zip,
+                    Event_Time_Hr,
+                    Dwell_Time2,
+                    TravelDistance_Mi_NewHvrs,
+                    TravelDistance_Mi_NewHvrs_Label,
+                    TT_Sec_New,
+                    TT_Sec_New_Label,
+                    WaitTime_Min2
+                   )
+
+str(ClustData)
+ClustData$Route <- as.factor(ClustData$Route)
+str(ClustData)
+
+
+```
 
 
 
