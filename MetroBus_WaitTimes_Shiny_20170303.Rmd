@@ -24,33 +24,36 @@ library("shiny")
 # runExample("05_sliders")
 
 # BaseData for line plots and violin plots
-BaseData <- read.delim("Shiny_WaitData_Base.txt",
-                         sep = "\t",
-                         header = TRUE,
-                         na.strings = c("NA")
-                        ) %>%
-    rename(ZipCode = Stop_Zip,
-           HourGroup = Event_Time_HrGroup,
-           Date = Event_Time_Date,
-           Day = Event_Time_Day,
-           Hour = Event_Time_Hr,
-           WaitTime_Min = WaitTime_Min2
-          ) %>% 
-  filter(WaitTime_Min <= 180)
+
+# BaseData <- read.delim("Shiny_WaitData_Base.txt",
+#                          sep = "\t",
+#                          header = TRUE,
+#                          na.strings = c("NA")
+#                         ) %>%
+#     rename(ZipCode = Stop_Zip,
+#            HourGroup = Event_Time_HrGroup,
+#            Date = Event_Time_Date,
+#            Day = Event_Time_Day,
+#            Hour = Event_Time_Hr,
+#            WaitTime_Min = WaitTime_Min2
+#           ) %>% 
+#   filter(WaitTime_Min <= 180)
+
+BaseData <- readRDS("Shiny_WaitData_Base.rds")
 
   # factor the relevant variables
-  BaseData$ZipCode <- factor(BaseData$ZipCode)
-  BaseData$Day <- factor(BaseData$Day,
-                         levels = c("Mon", "Tues", "Wed", "Thurs", "Fri"),
-                         ordered = TRUE
-                        )
-  BaseData$HourGroup <- factor(BaseData$HourGroup,
-                               levels = c("Group0_2", "Group3_5", "Group6_8",
-                                          "Group9_11", "Group12_14", "Group15_17",
-                                          "Group18_20", "Group21_23"
-                                         ),
-                               ordered = TRUE
-                              )
+  # BaseData$ZipCode <- factor(BaseData$ZipCode)
+  # BaseData$Day <- factor(BaseData$Day,
+  #                        levels = c("Mon", "Tues", "Wed", "Thurs", "Fri"),
+  #                        ordered = TRUE
+  #                       )
+  # BaseData$HourGroup <- factor(BaseData$HourGroup,
+  #                              levels = c("Group0_2", "Group3_5", "Group6_8",
+  #                                         "Group9_11", "Group12_14", "Group15_17",
+  #                                         "Group18_20", "Group21_23"
+  #                                        ),
+  #                              ordered = TRUE
+  #                             )
 
 
 RoutesDistinct <- distinct(select(BaseData,
@@ -69,17 +72,19 @@ ZipsDistinct <- distinct(select(BaseData,
 
 
 # MapData for mapping
-MapData <- read.delim("Shiny_WaitData_Map.txt",
-                      sep = "\t",
-                      header = TRUE,
-                      na.strings = c("NA")
-                     ) %>%
-    rename(ZipCode = Stop_Zip,
-           YrMthDayHr = Event_Time_YrMthDayHr,
-           YrMthDay = Event_Time_DateNew,
-           Hour = Event_Time_HrNew
-           # "Waiting Time (10s of minutes)" = Pct80_Level
-          ) 
+# MapData <- read.delim("Shiny_WaitData_Map.txt",
+#                       sep = "\t",
+#                       header = TRUE,
+#                       na.strings = c("NA")
+#                      ) %>%
+#     rename(ZipCode = Stop_Zip,
+#            YrMthDayHr = Event_Time_YrMthDayHr,
+#            YrMthDay = Event_Time_DateNew,
+#            Hour = Event_Time_HrNew
+#            # "Waiting Time (10s of minutes)" = Pct80_Level
+#           )
+
+MapData <- readRDS("Shiny_WaitData_Map.rds")
 # %>% 
   # mutate(Pct80_Level = ifelse(Pct80_Level == "0s",
   #                             "Below 10",
@@ -98,16 +103,16 @@ MapData <- read.delim("Shiny_WaitData_Map.txt",
   #        )
 
 # format the relevant variables
-MapData$YrMthDayHr <- ymd_hms(MapData$YrMthDayHr)
-MapData$YrMthDay <- ymd(MapData$YrMthDay)
-MapData$piece <- factor(MapData$piece)
-MapData$group <- factor(MapData$group)
-MapData$Pct80_Level <- factor(MapData$Pct80_Level,
-                              levels = c("Below 10", "Below 20", "Below 30", 
-                                         "Below 40", "Below 50", "Below 60", "60 Plus"
-                                        ),
-                              ordered = TRUE
-                             )
+# MapData$YrMthDayHr <- ymd_hms(MapData$YrMthDayHr)
+# MapData$YrMthDay <- ymd(MapData$YrMthDay)
+# MapData$piece <- factor(MapData$piece)
+# MapData$group <- factor(MapData$group)
+# MapData$Pct80_Level <- factor(MapData$Pct80_Level,
+#                               levels = c("Below 10", "Below 20", "Below 30", 
+#                                          "Below 40", "Below 50", "Below 60", "60 Plus"
+#                                         ),
+#                               ordered = TRUE
+#                              )
 
 # str(MapData)
 # 
@@ -181,10 +186,10 @@ bus_ui <- shinyUI(fluidPage(
                            label = "Date-Hour",
                            min = as.POSIXct("2016-10-03 00:00:00"),
                            max = as.POSIXct("2016-10-07 23:00:00"),
-                           value = as.POSIXct("2016-10-03 00:00:00"),
+                           value = as.POSIXct("2016-10-05 00:00:00"),
                            # step = "hour",
                            timeFormat = "%F %T",
-                           animate = animationOptions(interval = 8000,
+                           animate = animationOptions(interval = 10000,
                                                       loop = TRUE
                                                      )
                           ),
@@ -209,6 +214,8 @@ bus_server <- shinyServer(function(input, output) {
     isolate({
       
       RouteData <- reactive({
+        req(input$Tab1Route)
+        
         filter(BaseData,
                Route %in% input$Tab1Route
               )
@@ -398,6 +405,8 @@ bus_server <- shinyServer(function(input, output) {
     isolate({
       
       ZipData <- reactive({
+        req(input$Tab2Zip)
+        
         filter(BaseData,
                ZipCode %in% input$Tab2Zip
               )
@@ -471,6 +480,35 @@ bus_server <- shinyServer(function(input, output) {
               )
         })
       
+      # str(MapData)
+      
+      ColorLevels <- levels(MapData$Pct80_Level)
+
+      # View(distinct(select(MapData,
+      #             ZipCode,
+      #             YrMthDayHr,
+      #             Pct80_Level
+      #            ) %>%
+      #              arrange(YrMthDayHr,
+      #                      ZipCode)
+      #     ))
+      # 
+      View(tail(arrange(MapData,
+                   YrMthDayHr,
+                   ZipCode
+                  ),
+                500000)
+          )
+      
+      # View(filter(MapData,
+      #             between(YrMthDayHr, as.POSIXct("2016-10-03 20:00:00"),
+      #                     as.POSIXct("2016-10-04 01:00:00")
+      #                    )
+      #            ) %>% 
+      #        arrange(YrMthDayHr,
+      #                ZipCode)
+      #     )
+      
       # HourData_Zip <- group_by(ZipData(),
       #                          Hour
       #                         ) %>%
@@ -505,7 +543,7 @@ bus_server <- shinyServer(function(input, output) {
         geom_polygon(aes(x = long,
                          y = lat,
                          group = group,
-                         fill = factor(Pct80_Level)
+                         fill = Pct80_Level
                         ),
                      data = MapData_FilterHr(),
                      colour = "gray1",
@@ -526,9 +564,10 @@ bus_server <- shinyServer(function(input, output) {
 # +
       scale_fill_brewer(palette = "Spectral", # "YlOrRd" # "Set1",
                         direction = -1,
-                        guide = guide_legend(title = "Waiting Time Groups")
+                        guide = guide_legend(title = "Waiting Time Groups (min)"),
+                        limits = ColorLevels
                        ) +
-        labs(title = "Waiting Time in Zip Codes Throughout the Day",
+        labs(title = "Zip Code Waiting Times Throughout the Day",
              subtitle = ("(80th percentile values)")
              # x = "Hour of the Day",
              # y = "Waiting Time (min)"

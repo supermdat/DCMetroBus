@@ -3883,19 +3883,32 @@ Shiny_WaitData_Base <- select(WaitTime_RteCnts,
                               WaitTime_Min2
                              ) %>% 
   mutate(Event_Time_YrMthDayHr = floor_date(Event_Time, "hour")
-        )
+        ) %>% 
+  rename(ZipCode = Stop_Zip,
+         HourGroup = Event_Time_HrGroup,
+         Date = Event_Time_Date,
+         Day = Event_Time_Day,
+         Hour = Event_Time_Hr,
+         WaitTime_Min = WaitTime_Min2
+        ) %>% 
+  filter(WaitTime_Min <= 180)
 
 Shiny_WaitData_Base$Route <- factor(Shiny_WaitData_Base$Route)
 
 str(Shiny_WaitData_Base)
 View(tail(Shiny_WaitData_Base, 500))
 
-write.table(Shiny_WaitData_Base,
-            "Shiny_WaitData_Base.txt",
-            quote = FALSE,
-            sep = "\t",
-            row.names = FALSE
-           )
+
+# write.table(Shiny_WaitData_Base,
+#             "Shiny_WaitData_Base.txt",
+#             quote = FALSE,
+#             sep = "\t",
+#             row.names = FALSE
+#            )
+
+saveRDS(Shiny_WaitData_Base,
+        "Shiny_WaitData_Base.rds"
+       )
 # rm(Shiny_WaitData_Base)
 
 ```
@@ -3945,20 +3958,21 @@ ggtract <- tidy(tract, region = "GEOID")
 
 
 
+# str(Shiny_WaitData_Base)
 
 ZipWaitTest <- filter(Shiny_WaitData_Base,
-                      WaitTime_Min2 <= 180 &
-                        !is.na(Stop_Zip)
+                      WaitTime_Min <= 180 &
+                        !is.na(ZipCode)
                      ) %>% 
-  group_by(Stop_Zip,
+  group_by(ZipCode,
            Event_Time_YrMthDayHr
            # Event_Time_Day,
            # Event_Time_Hr
           ) %>% 
-  summarise(Pct80 = quantile(WaitTime_Min2, probs = 0.8, na.rm = TRUE)
+  summarise(Pct80 = quantile(WaitTime_Min, probs = 0.8, na.rm = TRUE)
            ) %>% 
   arrange(# Event_Time_Hr,
-          Stop_Zip,
+          ZipCode,
           Event_Time_YrMthDayHr
          ) %>% 
   as.data.frame() %>% 
@@ -3986,7 +4000,7 @@ ZipWaitTest <- filter(Shiny_WaitData_Base,
         )
 
 str(ZipWaitTest)
-ZipWaitTest$Stop_Zip <- as.character(ZipWaitTest$Stop_Zip)
+ZipWaitTest$ZipCode <- as.character(ZipWaitTest$ZipCode)
 str(ZipWaitTest)
 summary(ZipWaitTest)
 
@@ -4000,7 +4014,7 @@ StopZip_Left <- left_join(ZipWaitTest,
                           #        -hole,
                           #        -piece
                           #       ),
-                          by = c("Stop_Zip" = "id")
+                          by = c("ZipCode" = "id")
                          )
 
 # rm(ggtract)
@@ -4014,12 +4028,25 @@ View(head(filter(StopZip_Left,
          )
     )
 
-write.table(StopZip_Left,
-            "Shiny_WaitData_Map.txt",
-            quote = FALSE,
-            sep = "\t",
-            row.names = FALSE
-           )
+Shiny_WaitData_Map <- StopZip_Left %>% 
+  rename(YrMthDayHr = Event_Time_YrMthDayHr,
+         YrMthDay = Event_Time_DateNew,
+         Hour = Event_Time_HrNew
+        )
+
+str(Shiny_WaitData_Map)
+rm(StopZip_Left)
+
+# write.table(Shiny_WaitData_Map,
+#             "Shiny_WaitData_Map.txt",
+#             quote = FALSE,
+#             sep = "\t",
+#             row.names = FALSE
+#            )
+
+saveRDS(Shiny_WaitData_Map,
+        "Shiny_WaitData_Map.rds"
+       )
 
 
 
@@ -4034,10 +4061,10 @@ ggmap(map) +
   geom_polygon(aes(x = long, 
                    y = lat, 
                    group = group,
-                   fill = factor(Pct80_Level)
+                   fill = Pct80_Level
                   ), 
                data = filter(StopZip_Left,
-                             Event_Time_HrNew == 17 
+                             Event_Time_YrMthDayHr == as.POSIXct("2016-10-07 20:00:00")
                              # &
                              #   Stop_Zip == "20003"
                             ),
@@ -4058,7 +4085,8 @@ ggmap(map) +
   #                     ) 
 # +
   scale_fill_brewer(palette = "Spectral", # "YlOrRd" # "Set1",
-                    direction = -1
+                    direction = -1,
+                    limits = levels(StopZip_Left$Pct80_Level)
                    )
   
 # rm(map)
