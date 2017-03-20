@@ -4040,6 +4040,12 @@ Shiny_WaitData_Map <- StopZip_Left %>%
 str(Shiny_WaitData_Map)
 rm(StopZip_Left)
 
+Shiny_WaitData_Map_Wed <- filter(Shiny_WaitData_Map,
+                                 YrMthDay == as.POSIXct("2016-10-05")
+                                )
+str(Shiny_WaitData_Map_Wed)
+summary(Shiny_WaitData_Map_Wed)
+
 # write.table(Shiny_WaitData_Map,
 #             "Shiny_WaitData_Map.txt",
 #             quote = FALSE,
@@ -4049,6 +4055,10 @@ rm(StopZip_Left)
 
 saveRDS(Shiny_WaitData_Map,
         "Shiny_WaitData_Map.rds"
+       )
+
+saveRDS(Shiny_WaitData_Map_Wed,
+        "Shiny_WaitData_Map_Wed.rds"
        )
 
 
