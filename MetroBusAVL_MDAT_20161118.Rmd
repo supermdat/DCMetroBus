@@ -9,32 +9,31 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook for analysis usin
 
 https://planitmetro.com/2016/11/16/data-download-metrobus-vehicle-location-data/
 
-Control + Alt + Shift + m = rename in scope
 
 Load the packages to be used.
 ```{r echo = FALSE, message = FALSE}
 
-library("jsonlite")
-library("sqldf")
+library("jsonlite")           # manipulating JSON files for zip codes
+library("sqldf")              # sql-based data manipulation
 library("tcltk")
-library("tidyr")
-library("plyr")
-library("dplyr")
-library("magrittr")
-library("stringr")
-library("data.table")
-library("lubridate")
-library("geosphere")
-library("ggplot2")
-library("ggmap")
-library("ggvis")
-library("rbokeh")
-library("rgdal")
-library("broom")
-library("maptools")
-library("rgeos")
-library("fpc")
-library("dbscan")
+library("tidyr")              # data manipulation
+library("plyr")               # data manipulation
+library("dplyr")              # data manipulation
+library("magrittr")           # data manipulation (piping data)
+library("stringr")            # string manipulation
+library("data.table")         # used in testing data manipulation for speed increases
+library("lubridate")          # date manipulation
+library("geosphere")          # calculating Haversine distance
+library("ggplot2")            # general plotting
+library("ggmap")              # general plotting of maps
+library("ggvis")              # general plotting
+library("rbokeh")             # general plotting
+library("rgdal")              # used in plotting shapefiles
+library("broom")              # used in plotting shapefiles
+library("maptools")           # used in plotting shapefiles
+library("rgeos")              # used in plotting shapefiles
+library("fpc")                # used for clustering
+library("dbscan")             # used for clustering
 # library("gpclib")
 # install.packages('rgeos', type='source')
 # install.packages('rgdal', type='source')
@@ -172,6 +171,7 @@ StopID_New <- filter(AllDays_Sorted,
         )
 
 View(StopID_New)
+StopID_New
 
 ```
 
@@ -208,7 +208,6 @@ str(AllDays_StopIDNew)
 #     )
 
 ```
-
 
 
 Lat Long stats for pulling in Zip codes later.
@@ -281,13 +280,7 @@ pages1 <- list()
 
 
 system.time(
-#   for(j in 0:5){
-#   for(k in ((max_row_per_hr*j) + 1):(max_row_per_hr*(j+1)
-#                                     )
-#      ){
-#     
-#   }
-# }
+
 for(i in 1:1000){
   lat <- filter(LL_Stats,
                 RowNum == i
@@ -313,20 +306,8 @@ for(i in 1:1000){
   
   pages1[[i]] <- APIData1$postalCodes
   
-  # Sys.sleep(3900)
 }
 )
-
-# class(APIData1)
-# class(APIData2$postalCodes)
-# str(APIData1)
-# head(APIData1)
-# class(pages1)
-# str(pages1)
-# nrow(page1)
-# ncol(page1)
-# pages1[[1199]]
-# pages1[[2051]]
 
 
 ##### Combine the lists into one page
@@ -345,7 +326,6 @@ Zips_All <- bind_rows(Zips0,
                       Zips8,
                       Zips9,
                       Zips10,
-                      # Zips1_a,
                       .id = "id"
                      ) %>% 
   mutate(UniqueLatLng = paste(lat, lng, sep = "__")
@@ -648,40 +628,24 @@ AllDays_AddVars <- mutate(AllDays_FirstStopID,
 rm(AllDays_FirstStopID)
 str(AllDays_AddVars)
 
-
-# group_by(AllDays_AddVars,
-#          Event_Time_HrGroup
-#         ) %>% 
-#   summarise(Cnts = n()
-#            )
-
-
-# View(head(filter(AllDays_AddVars,
-#                  Event_Time_Hr == 0
-#                 ),
-#           50
-#          )
-#     )
-
-# View(head(AllDays_AddVars, 50))
-
 ```
 
 
-<!-- Function for calculating the distance traveled based on the Haversine formula.  Original code from: https://www.r-bloggers.com/great-circle-distance-calculations-in-r/ -->
-<!-- ```{r} -->
+Function for calculating the distance traveled based on the Haversine formula.  Original code from: https://www.r-bloggers.com/great-circle-distance-calculations-in-r/
+```{r}
 
-<!-- gcd.hf <- function(long1, lat1, long2, lat2) { -->
-<!--   R <- 6371 # Earth mean radius [km] -->
-<!--   delta.long <- (long2 - long1) -->
-<!--   delta.lat <- (lat2 - lat1) -->
-<!--   a <- sin(delta.lat/2)^2 + cos(lat1) * cos(lat2) * sin(delta.long/2)^2 -->
-<!--   c <- 2 * asin(min(1,sqrt(a))) -->
-<!--   d = R * c * 0.621371 # 1 km = 0.621371 miles -->
-<!--   return(d) # Distance in miles -->
-<!-- } -->
+# Calculates the geodesic distance between two points specified by radian latitude/longitude using the Haversine formula (hf)
+# gcd.hf <- function(long1, lat1, long2, lat2) {
+#   R <- 6371 # Earth mean radius [km]
+#   delta.long <- (long2 - long1)
+#   delta.lat <- (lat2 - lat1)
+#   a <- sin(delta.lat/2)^2 + cos(lat1) * cos(lat2) * sin(delta.long/2)^2
+#   c <- 2 * asin(min(1,sqrt(a)))
+#   d = R * c * 0.621371 # 1 km = 0.621371 miles
+#   return(d) # Distance in miles
+# }
 
-<!-- ``` -->
+```
 
 
 Feature engineering.
@@ -1681,6 +1645,7 @@ AllDays_NewTravelDist <-
          SpeedAvg_Mph_NewHvrs = TravelDistance_Mi_NewHvrs / TravelTime_Hr
         )
 
+rm(AllDays_NewOrder)
 str(AllDays_NewTravelDist)
 
 ```
@@ -1690,9 +1655,6 @@ Investigation of TravelDistance_Mi & TravelDistance_Mi_Hvrs & TravelDistance_Mi_
 
 Quick summary and then correlation calculation.
 ```{r}
-
-rm(AllDays_NewOrder)
-
 
 # 38 rows meet this criteria anymore  --  appears to be the case when both the Lat Long calculations, and the TravelDistance calculations did not function properly.
 View(filter(AllDays_NewTravelDist,
@@ -1954,6 +1916,7 @@ TravDistMiN_Pctiles <- group_by(TravDistMiN_Ntile,
         )
 
 # View(TravDistMiN_Pctiles)
+TravDistMiN_Pctiles
 
 ```
 
@@ -2001,6 +1964,7 @@ TravDistMiH_Pctiles <- group_by(TravDistMiH_Ntile,
         )
 
 # View(TravDistMiH_Pctiles)
+TravDistMiH_Pctiles
 
 ```
 
@@ -2343,7 +2307,6 @@ View(select(AllDays_NewTravelDist,
            )
     )
 
-
 ```
 
 
@@ -2397,6 +2360,13 @@ prop.table(as.table(as.matrix(TTLargeRteChng_Spread)
 
 # rm(TTLargeRteChng, TTLargeRteChng_Spread)
          
+```
+
+
+Investigation of TravelTime_Sec.
+
+Are large TravelTime_Sec values related to RouteChanges? Looks likely.
+```{r}
 
 View(filter(TTLargeRteChng,
             !is.na(TravelTime_Sec) &
@@ -2417,6 +2387,7 @@ View(filter(TTLargeRteChng,
               (RowNum_OG >= 808395 & RowNum_OG <= 808415) # 808405
            )
     )
+
 
 ```
 
@@ -2738,6 +2709,9 @@ Munging and sampling data to go from time beteen buses to "average" waiting time
 First, get the max and min times of bus stops (each day, and for each route).
 ```{r}
 
+rm(X2, X2_ByStop, X2_Long, X2_Pct)
+
+
 RouteMinMax <- group_by(NewTravTime,
                         Route,
                         Event_Time_Date
@@ -2896,27 +2870,27 @@ DistinctRowNum_OG <- distinct(select(WaitData_DayPull,
 
 str(DistinctRowNum_OG)
 
-View(
-anti_join(Samp,
-          DistinctRowNum_OG,
-          by = c("RowNum_OG" = "RowNum_OG")
-         )
-)
+# View(
+# anti_join(Samp,
+#           DistinctRowNum_OG,
+#           by = c("RowNum_OG" = "RowNum_OG")
+#          )
+# )
 
 
 # The samp time is AFTER the last bus passed that StopID_Clean
-View(filter(Samp,
-            Event_Time > "2016-10-07 19:48:41" &
-              Route == "X2" &
-              StopID_Clean == 1003774
-           )
-    )
+# View(filter(Samp,
+#             Event_Time > "2016-10-07 19:48:41" &
+#               Route == "X2" &
+#               StopID_Clean == 1003774
+#            )
+#     )
 
 # Next Bus (NB) can be on the next morning
-View(filter(Testing7,
-            SampTime > "2016-10-06 23:58:00" &
-              SampTime < "2016-10-06 23:59:59")
-    )
+# View(filter(Testing7,
+#             SampTime > "2016-10-06 23:58:00" &
+#               SampTime < "2016-10-06 23:59:59")
+#     )
 
 ```
 
@@ -3901,18 +3875,10 @@ Shiny_WaitData_Base$Route <- factor(Shiny_WaitData_Base$Route)
 str(Shiny_WaitData_Base)
 View(tail(Shiny_WaitData_Base, 500))
 
-
-# write.table(Shiny_WaitData_Base,
-#             "Shiny_WaitData_Base.txt",
-#             quote = FALSE,
-#             sep = "\t",
-#             row.names = FALSE
-#            )
-
 saveRDS(Shiny_WaitData_Base,
         "Shiny_WaitData_Base.rds"
        )
-# rm(Shiny_WaitData_Base)
+rm(Shiny_WaitData_Base)
 
 ```
 
@@ -4046,12 +4012,6 @@ Shiny_WaitData_Map_Wed <- filter(Shiny_WaitData_Map,
 str(Shiny_WaitData_Map_Wed)
 summary(Shiny_WaitData_Map_Wed)
 
-# write.table(Shiny_WaitData_Map,
-#             "Shiny_WaitData_Map.txt",
-#             quote = FALSE,
-#             sep = "\t",
-#             row.names = FALSE
-#            )
 
 saveRDS(Shiny_WaitData_Map,
         "Shiny_WaitData_Map.rds"
@@ -4061,6 +4021,7 @@ saveRDS(Shiny_WaitData_Map_Wed,
         "Shiny_WaitData_Map_Wed.rds"
        )
 
+rm(Shiny_WaitData_Map, Shiny_WaitData_Map_Wed)
 
 
 
