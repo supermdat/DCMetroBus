@@ -3136,9 +3136,6 @@ Munging and sampling data to go from time beteen buses to "average" waiting time
 Compare WaitData (pulled by route) and original data (NewTravTime).
 ```{r}
 
-# rm(WaitData_Diff)
-
-
 dim(NewTravTime)  # 2,809,529 rows
 dim(WaitData_RoutePull)  # 2,780,848 rows
 nrow(NewTravTime) - nrow(WaitData_RoutePull)  # is 28,681 rows
@@ -3181,23 +3178,23 @@ View(filter(Compare_NTT_WD,
 
 
 
-View(anti_join(Samp,
-               distinct(select(WaitData_RoutePull,
-                               RowNum_OG
-                              )
-                       ),
-               by = c("RowNum_OG" = "RowNum_OG")
-              )
-    )
+# View(anti_join(Samp,
+#                distinct(select(WaitData_RoutePull,
+#                                RowNum_OG
+#                               )
+#                        ),
+#                by = c("RowNum_OG" = "RowNum_OG")
+#               )
+#     )
 
 # The SampTime is AFTER the last bus passed that StopID_Clean
-View(filter(Samp,
-              Route == "X2" &
-              StopID_Clean == 1003774
-            # RowNum_OG = 1146723
-            # Event_Time = 2016-10-07 15:32:18
-           )
-    )
+# View(filter(Samp,
+#               Route == "X2" &
+#               StopID_Clean == 1003774
+#             # RowNum_OG = 1146723
+#             # Event_Time = 2016-10-07 15:32:18
+#            )
+#     )
 
 ```
 
@@ -3234,6 +3231,12 @@ General exploration of wait times.
 
 summary(WaitTime_AsNum$WaitTime_Min2)
 
+```
+
+
+General exploration of wait times.
+```{r}
+
 WT_Quantiles <- as.data.frame(quantile(WaitTime_AsNum$WaitTime_Min2,
                                        probs = seq(0, 1, 0.01),
                                        na.rm = TRUE
@@ -3269,6 +3272,7 @@ WT_Quantiles <- select(WT_Quantiles,
 
 str(WT_Quantiles)
 View(WT_Quantiles)
+WT_Quantiles
 
 
 View(arrange(WaitTime_AsNum,
@@ -3339,6 +3343,7 @@ RouteStop_CntOfCnt <- group_by(RouteStop_Cnts,
   arrange(RouteStop_CntNum)
   
  View(RouteStop_CntOfCnt)
+ RouteStop_CntOfCnt
 
 ```
 
@@ -3416,7 +3421,11 @@ filter(WaitTime_RteCnts,
   select(WaitTime_Min2) %>% 
   summary()
 
+```
 
+
+Compare quantiles in the limited datasets.
+```{r}
 
 a <- as.data.frame(select(WaitTime_RteCnts,
                           WaitTime_Min2
@@ -3445,6 +3454,7 @@ WT_Filter_Quantiles <- bind_cols(a, b, c) %>%
 colnames(WT_Filter_Quantiles) <- c("All", "RteStpAbv60", "WTBlw180", "Quantile")
 rm(a, b, c)
 View(WT_Filter_Quantiles)
+WT_Filter_Quantiles
 
 ```
 
@@ -3675,20 +3685,12 @@ CountValues_AllBus_RteHG <- group_by(Rte,
                                      Event_Time_HrGroup
                                     ) %>% 
   summarise(
-                                      Value_Counts = median(WaitTime_Min2,
-                                                       na.rm = TRUE
-                                                      ),
-                                      VC = quantile(WaitTime_Min2, probs = 0.9,
-                                                    na.rm = TRUE)
-                                      )
-  
-  # ddply(Rte,
-  #                                .(Event_Time_HrGroup),
-  #                                summarise,
-  #                                Value_Counts = median(WaitTime_Min2,
-  #                                                      na.rm = TRUE
-  #                                                     )
-  #                               )
+    Value_Counts = median(WaitTime_Min2,
+                          na.rm = TRUE
+                         ),
+    VC = quantile(WaitTime_Min2, probs = 0.9, na.rm = TRUE)
+    )
+
 
 WaitTime_AllBus_RteHG_Box <- ggplot(Rte,
                                     aes(factor(Event_Time_HrGroup),
@@ -3840,9 +3842,11 @@ X2_WaitByHr_Line
 
 
 
+GET DATA READY FOR SHINY  --  GET DATA READY FOR SHINY  --  GET DATA READY FOR SHINY
+GET DATA READY FOR SHINY  --  GET DATA READY FOR SHINY  --  GET DATA READY FOR SHINY
+GET DATA READY FOR SHINY  --  GET DATA READY FOR SHINY  --  GET DATA READY FOR SHINY
 
-
-GET DATA READY FOR SHINY
+BaseData: Used in plots by hour and zipcode (first two Shiny tabs).
 ```{r}
 
 # str(WaitTime_RteCnts)
@@ -3878,13 +3882,11 @@ View(tail(Shiny_WaitData_Base, 500))
 saveRDS(Shiny_WaitData_Base,
         "Shiny_WaitData_Base.rds"
        )
-rm(Shiny_WaitData_Base)
 
 ```
 
 
-
-Testing mapping functionaltiy
+Prep data for mapping.
 ```{r}
 
 # devtools::install_github("dkahle/ggmap")
@@ -3898,11 +3900,6 @@ devtools::install_github("hadley/ggplot2@v2.2.0")
 # devtools::install_github('slowkow/ggrepel')
 
 
-
-
-
-
-
 tract <- 
   readOGR(dsn = "/Users/mdturse/Desktop/Analytics/DCMetroBus/tl_2016_us_zcta510",
           layer = "tl_2016_us_zcta510"
@@ -3910,17 +3907,13 @@ tract <-
   
 class(tract)
 
-
 # convert the GEOID to a character
 tract@data$GEOID <- as.character(tract@data$GEOID)
-
 str(tract@data)
 
 
-# gpclibPermit()
 ggtract <- tidy(tract, region = "GEOID")
-# rm(tract)
-# ggtract <- fortify(tract, region = "GEOID")
+
 # str(ggtract)
 # summary(ggtract)
 # View(head(ggtract, 50))
@@ -3978,52 +3971,17 @@ View(head(ZipWaitTest, 500))
 
 StopZip_Left <- left_join(ZipWaitTest,
                           ggtract,
-                          # select(ggtract,
-                          #        -order,
-                          #        -hole,
-                          #        -piece
-                          #       ),
                           by = c("ZipCode" = "id")
                          )
 
-# rm(ggtract)
 str(StopZip_Left)
 summary(StopZip_Left)
 
-View(head(filter(StopZip_Left,
-                 Event_Time_HrNew == 15
-                ),
-          500
-         )
-    )
-
-Shiny_WaitData_Map <- StopZip_Left %>% 
-  rename(YrMthDayHr = Event_Time_YrMthDayHr,
-         YrMthDay = Event_Time_DateNew,
-         Hour = Event_Time_HrNew
-        )
-
-str(Shiny_WaitData_Map)
-rm(StopZip_Left)
-
-Shiny_WaitData_Map_Wed <- filter(Shiny_WaitData_Map,
-                                 YrMthDay == as.POSIXct("2016-10-05")
-                                )
-str(Shiny_WaitData_Map_Wed)
-summary(Shiny_WaitData_Map_Wed)
+```
 
 
-saveRDS(Shiny_WaitData_Map,
-        "Shiny_WaitData_Map.rds"
-       )
-
-saveRDS(Shiny_WaitData_Map_Wed,
-        "Shiny_WaitData_Map_Wed.rds"
-       )
-
-rm(Shiny_WaitData_Map, Shiny_WaitData_Map_Wed)
-
-
+Test mapping functionaltiy.
+```{r}
 
 map <- get_map(location = c(lon = -77.03676, lat = 38.89784),
                source = "google",
@@ -4062,21 +4020,72 @@ ggmap(map) +
                     direction = -1,
                     limits = levels(StopZip_Left$Pct80_Level)
                    )
-  
-# rm(map)
-
-
-
-
 
 ```
+
+
+Shiny data for mapping (used in 3rd tab).
+```{r}
+
+View(head(filter(StopZip_Left,
+                 Event_Time_HrNew == 15
+                ),
+          500
+         )
+    )
+
+Shiny_WaitData_Map <- StopZip_Left %>% 
+  rename(YrMthDayHr = Event_Time_YrMthDayHr,
+         YrMthDay = Event_Time_DateNew,
+         Hour = Event_Time_HrNew
+        )
+
+str(Shiny_WaitData_Map)
+
+
+Shiny_WaitData_Map_Wed <- filter(Shiny_WaitData_Map,
+                                 YrMthDay == as.POSIXct("2016-10-05")
+                                )
+
+str(Shiny_WaitData_Map_Wed)
+summary(Shiny_WaitData_Map_Wed)
+
+
+saveRDS(Shiny_WaitData_Map,
+        "Shiny_WaitData_Map.rds"
+       )
+
+saveRDS(Shiny_WaitData_Map_Wed,
+        "Shiny_WaitData_Map_Wed.rds"
+       )
+
+```
+
+
 
 
 Clustering
 ```{r}
 
+rm(tract, ggtract, StopZip_Left, ZipWaitTest, Shiny_WaitData_Base, Shiny_WaitData_Map, Shiny_WaitData_Map_Wed)
+
+
+dim(NewTravTime)
+dim(WaitTime_RteCnts)
+
+
+str(select(NewTravTime,
+           -matches("(q(2|5|(95)|(98)))|Mean|Med|Cnt")
+          )
+   )
+str(select(NewTravTime,
+           matches("(q(2|5|(95)|(98)))|Mean|Med|Cnt")
+          )
+   )
 str(WaitTime_RteCnts)
 
+ 
+ 
 ClustData <- select(WaitTime_RteCnts,
                     group,
                     BusDay_EventNum,
@@ -4097,11 +4106,13 @@ ClustData <- select(WaitTime_RteCnts,
                     TT_Sec_New,
                     TT_Sec_New_Label,
                     WaitTime_Min2
-                   )
+                   ) %>% 
+  filter(WaitTime_Min2 <= 180)
 
 str(ClustData)
 ClustData$Route <- as.factor(ClustData$Route)
 str(ClustData)
+summary(ClustData$WaitTime_Min2)
 
 
 ```
