@@ -34,10 +34,12 @@ library("maptools")           # used in plotting shapefiles
 library("rgeos")              # used in plotting shapefiles
 library("fpc")                # used for clustering
 library("dbscan")             # used for clustering
+library("NbClust")            # used for clustering
+library("factoextra")         # plotting clusters
 # library("gpclib")
 # install.packages('rgeos', type='source')
 # install.packages('rgdal', type='source')
-# install.packages("dbscan")
+# install.packages("NbClust")
 
 ```
 
@@ -4086,33 +4088,148 @@ str(WaitTime_RteCnts)
 
  
  
-ClustData <- select(WaitTime_RteCnts,
-                    group,
-                    BusDay_EventNum,
-                    Route,
-                    RteChange2,
-                    RouteAlt,
-                    DirChange2,
-                    Route_Direction,
-                    Stop_Sequence,
-                    StopID_Indicator,
-                    Stop_County,
-                    Stop_City,
-                    Stop_Zip,
-                    Event_Time_Hr,
-                    Dwell_Time2,
-                    TravelDistance_Mi_NewHvrs,
-                    TravelDistance_Mi_NewHvrs_Label,
-                    TT_Sec_New,
-                    TT_Sec_New_Label,
-                    WaitTime_Min2
-                   ) %>% 
-  filter(WaitTime_Min2 <= 180)
+# ClustData <- select(WaitTime_RteCnts,
+#                     group,
+#                     BusDay_EventNum,
+#                     Route,
+#                     RteChange2,
+#                     RouteAlt,
+#                     DirChange2,
+#                     Route_Direction,
+#                     Stop_Sequence,
+#                     StopID_Indicator,
+#                     Stop_County,
+#                     Stop_City,
+#                     Stop_Zip,
+#                     Event_Time_Hr,
+#                     Dwell_Time2,
+#                     TravelDistance_Mi_NewHvrs,
+#                     TravelDistance_Mi_NewHvrs_Label,
+#                     TT_Sec_New,
+#                     TT_Sec_New_Label,
+#                     WaitTime_Min2
+#                    ) %>% 
+#   filter(WaitTime_Min2 <= 180) %>% 
+#   mutate(SpeedAvg_Mph_TDMNH_TTSN = TravelDistance_Mi_NewHvrs / 
+#            (TT_Sec_New / 60 / 60)
+#         )
+# %>% 
+#   select_if(ClustData,
+#             function(col) is.numeric(col) |
+#               is.integer(col)
+#            ) %>% 
+#    scale()
 
-str(ClustData)
-ClustData$Route <- as.factor(ClustData$Route)
-str(ClustData)
-summary(ClustData$WaitTime_Min2)
+# str(ClustData)
+# View(tail(ClustData, 500))
+# rownames(ClustData) <- ClustData$Route
+# ClustData$Route <- as.factor(ClustData$Route)
+# str(ClustData)
+# head(ClustData)
+
+
+RouteStats <- filter(WaitTime_RteCnts,
+                     WaitTime_Min2 <= 180
+                    ) %>% 
+  mutate(SpeedAvg_Mph_TDMNH_TTSN = TravelDistance_Mi_NewHvrs / (TT_Sec_New / 60 / 60)
+        ) %>% 
+  group_by(Route) %>% 
+  summarise(BusDayEventNum_Mean = mean(BusDay_EventNum, na.rm = TRUE),
+            BusDayEventNum_Pct10 = quantile(BusDay_EventNum, probs = 0.10, na.rm = TRUE),
+            BusDayEventNum_Pct25 = quantile(BusDay_EventNum, probs = 0.25, na.rm = TRUE),
+            BusDayEventNum_Pct50 = quantile(BusDay_EventNum, probs = 0.50, na.rm = TRUE),
+            BusDayEventNum_Pct75 = quantile(BusDay_EventNum, probs = 0.75, na.rm = TRUE),
+            BusDayEventNum_Pct90 = quantile(BusDay_EventNum, probs = 0.90, na.rm = TRUE),
+            StopSequence_Mean = mean(Stop_Sequence, na.rm = TRUE),
+            StopSequence_Pct10 = quantile(Stop_Sequence, probs = 0.10, na.rm = TRUE),
+            StopSequence_Pct25 = quantile(Stop_Sequence, probs = 0.25, na.rm = TRUE),
+            StopSequence_Pct50 = quantile(Stop_Sequence, probs = 0.50, na.rm = TRUE),
+            StopSequence_Pct75 = quantile(Stop_Sequence, probs = 0.75, na.rm = TRUE),
+            StopSequence_Pct90 = quantile(Stop_Sequence, probs = 0.90, na.rm = TRUE),
+            EventTimeHr_Mean = mean(Event_Time_Hr, na.rm = TRUE),
+            EventTimeHr_Pct10 = quantile(Event_Time_Hr, probs = 0.10, na.rm = TRUE),
+            EventTimeHr_Pct25 = quantile(Event_Time_Hr, probs = 0.25, na.rm = TRUE),
+            EventTimeHr_Pct50 = quantile(Event_Time_Hr, probs = 0.50, na.rm = TRUE),
+            EventTimeHr_Pct75 = quantile(Event_Time_Hr, probs = 0.75, na.rm = TRUE),
+            EventTimeHr_Pct90 = quantile(Event_Time_Hr, probs = 0.90, na.rm = TRUE),
+            DwellTime2_Mean = mean(Dwell_Time2, na.rm = TRUE),
+            DwellTime2_Pct10 = quantile(Dwell_Time2, probs = 0.10, na.rm = TRUE),
+            DwellTime2_Pct25 = quantile(Dwell_Time2, probs = 0.25, na.rm = TRUE),
+            DwellTime2_Pct50 = quantile(Dwell_Time2, probs = 0.50, na.rm = TRUE),
+            DwellTime2_Pct75 = quantile(Dwell_Time2, probs = 0.75, na.rm = TRUE),
+            DwellTime2_Pct90 = quantile(Dwell_Time2, probs = 0.90, na.rm = TRUE),
+            TravDistMi_Mean = mean(TravelDistance_Mi_NewHvrs, na.rm = TRUE),
+            TravDistMi_Pct10 = quantile(TravelDistance_Mi_NewHvrs,
+                                        probs = 0.10, na.rm = TRUE
+                                       ),
+            TravDistMi_Pct25 = quantile(TravelDistance_Mi_NewHvrs,
+                                        probs = 0.25, na.rm = TRUE
+                                       ),
+            TravDistMi_Pct50 = quantile(TravelDistance_Mi_NewHvrs,
+                                        probs = 0.50, na.rm = TRUE
+                                       ),
+            TravDistMi_Pct75 = quantile(TravelDistance_Mi_NewHvrs,
+                                        probs = 0.75, na.rm = TRUE
+                                       ),
+            TravDistMi_Pct90 = quantile(TravelDistance_Mi_NewHvrs,
+                                        probs = 0.90, na.rm = TRUE
+                                       ),
+            TravTimSec_Mean = mean(TT_Sec_New, na.rm = TRUE),
+            TravTimSec_Pct10 = quantile(TT_Sec_New, probs = 0.10, na.rm = TRUE),
+            TravTimSec_Pct25 = quantile(TT_Sec_New, probs = 0.25, na.rm = TRUE),
+            TravTimSec_Pct50 = quantile(TT_Sec_New, probs = 0.50, na.rm = TRUE),
+            TravTimSec_Pct75 = quantile(TT_Sec_New, probs = 0.75, na.rm = TRUE),
+            TravTimSec_Pct90 = quantile(TT_Sec_New, probs = 0.90, na.rm = TRUE),
+            WaitTimMin_Mean = mean(WaitTime_Min2, na.rm = TRUE),
+            WaitTimMin_Pct10 = quantile(WaitTime_Min2, probs = 0.10, na.rm = TRUE),
+            WaitTimMin_Pct25 = quantile(WaitTime_Min2, probs = 0.25, na.rm = TRUE),
+            WaitTimMin_Pct50 = quantile(WaitTime_Min2, probs = 0.50, na.rm = TRUE),
+            WaitTimMin_Pct75 = quantile(WaitTime_Min2, probs = 0.75, na.rm = TRUE),
+            WaitTimMin_Pct90 = quantile(WaitTime_Min2, probs = 0.90, na.rm = TRUE)
+           ) %>% 
+  as.data.frame()
+
+str(RouteStats)
+
+rownames(RouteStats) <- RouteStats$Route
+str(RouteStats)
+View(RouteStats)
+
+
+RouteStats_Scaled <- select(RouteStats,
+                            -Route
+                           ) %>% 
+  scale()
+str(RouteStats_Scaled)
+View(RouteStats_Scaled)
+
+summary(RouteStats)
+summary(RouteStats_Scaled)
+
+# <- select_if(ClustData,
+#                               function(col) is.numeric(col) |
+#                                 is.integer(col)
+#                              ) %>% 
+  # scale() %>% 
+  # as.data.frame() %>% 
+  # na.omit()
+
+# str(ClustData_NoFact)
+# summary(ClustData_NoFact)
+
+
+
+
+# Are the data clusterable?
+# gradient_col <- list(low = "steelblue", high = "white")
+ClustData_Ends <- get_clust_tendency(RouteStats_Scaled,
+                                     n = nrow(RouteStats_Scaled),
+                                     # gradient = gradient_col,
+                                     seed = 123456789
+                                    )
+
+# Hopkins statistic
+ClustData_Ends$hopkins_stat
 
 
 ```
