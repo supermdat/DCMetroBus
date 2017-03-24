@@ -32,6 +32,8 @@ library("rgdal")              # used in plotting shapefiles
 library("broom")              # used in plotting shapefiles
 library("maptools")           # used in plotting shapefiles
 library("rgeos")              # used in plotting shapefiles
+library("caret")              # used in PCA
+library("cluster")            # used for clustering
 library("fpc")                # used for clustering
 library("dbscan")             # used for clustering
 library("NbClust")            # used for clustering
@@ -4067,6 +4069,8 @@ saveRDS(Shiny_WaitData_Map_Wed,
 
 
 Clustering
+
+Data prep.
 ```{r}
 
 rm(tract, ggtract, StopZip_Left, ZipWaitTest, Shiny_WaitData_Base, Shiny_WaitData_Map, Shiny_WaitData_Map_Wed)
@@ -4200,7 +4204,9 @@ RouteStats_Scaled <- select(RouteStats,
                             -Route
                            ) %>% 
   scale()
+
 str(RouteStats_Scaled)
+class(RouteStats_Scaled)
 View(RouteStats_Scaled)
 
 summary(RouteStats)
@@ -4217,22 +4223,187 @@ summary(RouteStats_Scaled)
 # str(ClustData_NoFact)
 # summary(ClustData_NoFact)
 
+```
 
 
+PCA
+```{r}
 
-# Are the data clusterable?
+Trnsfrm <- preProcess(select(RouteStats,
+                             -Route
+                            ),
+                      method = c("BoxCox", "center", "scale", "pca")
+                     )
+
+# loadings
+Trnsfrm$rotation
+
+RouteStats_Pca <- predict(Trnsfrm, RouteStats) %>% 
+  select(-Route)
+RouteStats_Pca
+
+```
+
+
+Clustering.
+
+Are the data clusterable?
+```{r}
+
+##### Are the data clusterable?
 # gradient_col <- list(low = "steelblue", high = "white")
-ClustData_Ends <- get_clust_tendency(RouteStats_Scaled,
-                                     n = nrow(RouteStats_Scaled),
+ClustData_Ends <- get_clust_tendency(RouteStats_Pca,
+                                     n = nrow(RouteStats_Pca
+                                             ) - 1,
                                      # gradient = gradient_col,
                                      seed = 123456789
                                     )
 
+str(ClustData_Ends)
+
 # Hopkins statistic
-ClustData_Ends$hopkins_stat
+ClustData_Ends$hopkins_stat  # value of 0.1657494 implies that the data are not uniformly distributed (they are "clusterable")
+
+#plot
+ClustData_Ends$plot
+
+```
+
+
+Clustering. How many clusters are there?
+
+kmeans, pam, and hierarchical clustring methods, using within sum of squares and silhouette measures.
+```{r}
+
+# class(RouteStats_Pca)
+
+fviz_nbclust(RouteStats_Pca, kmeans, method = "wss")  # ~8 clusters
+fviz_nbclust(RouteStats_Pca, pam, method = "wss")  # ~6 clusters
+fviz_nbclust(RouteStats_Pca, hcut, method = "wss")  # ~6 clusters
+
+fviz_nbclust(RouteStats_Pca, kmeans, method = "silhouette")  # 2 clusters
+fviz_nbclust(RouteStats_Pca, pam, method = "silhouette")  # 2 clusters
+fviz_nbclust(RouteStats_Pca, hcut, method = "silhouette",
+             hc_method = "complete")  # 2 clusters
+
+```
+
+
+Clustering. How many clusters are there?
+
+kmeans method with the gap statistic, using bootstrap.
+```{r}
+
+# Compute gap statistic
+# kmeans version
+set.seed(123456789)
+# system.time(
+gap_stat_km <- clusGap(RouteStats_Pca,
+                       FUN = kmeans,
+                       nstart = 25,
+                       K.max = 10,
+                       B = 500
+                      )
+# )
+
+# Print
+print(gap_stat_km, method = "Tibs2001SEmax")
+print(gap_stat_km)
+
+
+# pam version
+set.seed(123456789)
+gap_stat_pm <- clusGap(RouteStats_Pca,
+                       FUN = pam,
+                       K.max = 10,
+                       B = 500
+                      )
+
+# Print
+print(gap_stat_pm, method = "Tibs2001SEmax")
+print(gap_stat_pm)
+
+
+# hierarchical version
+set.seed(123456789)
+gap_stat_hcut <- clusGap(RouteStats_Pca,
+                         FUN = hcut,
+                         K.max = 10,
+                         B = 500
+                        )
+
+# Print
+print(gap_stat_hcut, method = "Tibs2001SEmax")
+print(gap_stat_hcut)
+
+
+
+# Plot kmeans
+fviz_gap_stat(gap_stat_km, 
+              maxSE = list(method = "Tibs2001SEmax")
+             )  # 1 cluster
+
+# Plot pam
+fviz_gap_stat(gap_stat_pm, 
+              maxSE = list(method = "Tibs2001SEmax")
+             )  # 2 cluster
+
+# Plot hierarchical
+fviz_gap_stat(gap_stat_hcut, 
+              maxSE = list(method = "Tibs2001SEmax")
+             )  # 1 cluster
+
+```
+
+
+Clustering. How many clusters are there?
+
+kmeans method with various different statistics.
+```{r}
+
+# str(iris)
+
+nb <- NbClust(RouteStats_Pca, #scale(iris[ ,-5]),
+              distance = "euclidean",
+              min.nc = 2,
+              max.nc = 15,
+              method = "kmeans",
+              index = "all"
+             )
+
+fviz_nbclust(nb) + theme_minimal()
+
+```
+
+
+Clustering. How many clusters are there?
+
+kmeans method with various different statistics.
+----- !!  MAYBE NEED TO TRY WITH DIFFERENT VALUES FOR K  !! -----
+```{r}
+
+# Enhanced hierarchical clustering, cut in 2 groups
+res.hc <- eclust(RouteStats_Pca, "hclust", k = 2, graph = FALSE) 
+
+# Visualize
+fviz_dend(res.hc, rect = TRUE, show_labels = FALSE)
+
+fviz_silhouette(res.hc)
+
+
+
+hc_stats <- cluster.stats(dist(RouteStats_Scaled, 
+                               method ="euclidean"
+                               ),
+                          res.hc$cluster
+                         )
+
+hc_stats
+
 
 
 ```
+
 
 
 
