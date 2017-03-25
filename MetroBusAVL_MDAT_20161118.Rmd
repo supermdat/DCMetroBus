@@ -25,9 +25,9 @@ library("data.table")         # used in testing data manipulation for speed incr
 library("lubridate")          # date manipulation
 library("geosphere")          # calculating Haversine distance
 library("ggplot2")            # general plotting
-library("ggmap")              # general plotting of maps
 library("ggvis")              # general plotting
 library("rbokeh")             # general plotting
+library("ggmap")              # general plotting of maps
 library("rgdal")              # used in plotting shapefiles
 library("broom")              # used in plotting shapefiles
 library("maptools")           # used in plotting shapefiles
@@ -4378,29 +4378,55 @@ fviz_nbclust(nb) + theme_minimal()
 
 Clustering. How many clusters are there?
 
-kmeans method with various different statistics.
------ !!  MAYBE NEED TO TRY WITH DIFFERENT VALUES FOR K  !! -----
+kmeans method. Particularly looking at silhouette statistics.
 ```{r}
 
-# Enhanced hierarchical clustering, cut in 2 groups
-res.hc <- eclust(RouteStats_Pca, "hclust", k = 2, graph = FALSE) 
+# Hierarchical clustering, cut in 2 to 15 groups
+for(i in 2:15) {
+  assign(paste0("HCRes_K", i),
+         eclust(RouteStats_Pca,
+                "hclust",
+                k = i,
+                method = "complete",
+                graph = FALSE
+               )
+        )
+  
+  assign("x",
+         get(paste0("HCRes_K", i)
+            )
+        )
+  
+  assign(paste0("HCStats_K", i),
+         cluster.stats(dist(RouteStats_Scaled,
+                            method ="euclidean"
+                           ),
+                       x$cluster
+                      )
+        )
+  
+  assign(paste("HCDend_K", i),
+         fviz_dend(x, rect = TRUE, show_labels = FALSE)
+        )
+  
+  assign(paste("HCSil_K", i),
+         fviz_silhouette(x)
+        )
+         
+  }
+
 
 # Visualize
-fviz_dend(res.hc, rect = TRUE, show_labels = FALSE)
+`HCDend_K 2`
+`HCDend_K 3`
 
-fviz_silhouette(res.hc)
+`HCSil_K 2`
+`HCSil_K 3`
 
+HCStats_K2$clus.avg.silwidths
+HCStats_K3$clus.avg.silwidths
 
-
-hc_stats <- cluster.stats(dist(RouteStats_Scaled, 
-                               method ="euclidean"
-                               ),
-                          res.hc$cluster
-                         )
-
-hc_stats
-
-
+# rm(HC_Res_2, HC_Res_3, HC_Res_4, HC_Stats_2, HC_Stats_3, HC_Stats_4)
 
 ```
 
