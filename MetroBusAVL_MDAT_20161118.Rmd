@@ -4378,7 +4378,7 @@ fviz_nbclust(nb) + theme_minimal()
 
 Clustering. How many clusters are there?
 
-kmeans method. Particularly looking at silhouette statistics.
+Hierarchical clustering method. Particularly looking at silhouette statistics.
 ```{r}
 
 # Hierarchical clustering, cut in 2 to 15 groups
@@ -4405,32 +4405,156 @@ for(i in 2:15) {
                       )
         )
   
-  assign(paste("HCDend_K", i),
+  assign("y",
+         get(paste0("HCStats_K", i)
+            )
+        )
+  
+  assign(paste0("HCDend_K", i),
          fviz_dend(x, rect = TRUE, show_labels = FALSE)
         )
   
-  assign(paste("HCSil_K", i),
+  assign(paste0("HCSil_K", i),
          fviz_silhouette(x)
         )
-         
+  
+  assign(paste0("HCSilWidth_K", i),
+         as.data.frame(y$clus.avg.silwidths) %>% 
+           mutate(KVal = 1:nrow(.)
+                 )
+        )
   }
 
 
+HCSilWidth_AllK <- left_join(select(HCSilWidth_K15,
+                                    KVal,
+                                    `y$clus.avg.silwidths`
+                                   ),
+                             HCSilWidth_K14,
+                             by = c("KVal" = "KVal")
+                            ) %>% 
+  left_join(.,
+            HCSilWidth_K13,
+            by = c("KVal" = "KVal")
+           ) %>% 
+  left_join(.,
+            HCSilWidth_K12,
+            by = c("KVal" = "KVal")
+           ) %>% 
+  left_join(.,
+            HCSilWidth_K11,
+            by = c("KVal" = "KVal")
+           ) %>% 
+  left_join(.,
+            HCSilWidth_K10,
+            by = c("KVal" = "KVal")
+           ) %>% 
+  left_join(.,
+            HCSilWidth_K9,
+            by = c("KVal" = "KVal")
+           ) %>% 
+  left_join(.,
+            HCSilWidth_K8,
+            by = c("KVal" = "KVal")
+           ) %>% 
+  left_join(.,
+            HCSilWidth_K7,
+            by = c("KVal" = "KVal")
+           ) %>% 
+  left_join(.,
+            HCSilWidth_K6,
+            by = c("KVal" = "KVal")
+           ) %>% 
+  left_join(.,
+            HCSilWidth_K5,
+            by = c("KVal" = "KVal")
+           ) %>% 
+  left_join(.,
+            HCSilWidth_K4,
+            by = c("KVal" = "KVal")
+           ) %>% 
+  left_join(.,
+            HCSilWidth_K3,
+            by = c("KVal" = "KVal")
+           ) %>% 
+  left_join(.,
+            HCSilWidth_K2,
+            by = c("KVal" = "KVal")
+           )
+  
+colnames(HCSilWidth_AllK) <- c("KVal", "K15", "K14", "K13", "K12", "K11", "K10", "K9",
+                               "K8", "K7", "K6", "K5", "K4", "K3", "K2"
+                              )
+
+
 # Visualize
-`HCDend_K 2`
-`HCDend_K 3`
+HCDend_K2
+HCDend_K3
+HCDend_K4
+HCDend_K5
+HCDend_K6
+HCDend_K7
+HCDend_K8
+HCDend_K9
+HCDend_K10
+HCDend_K11
+HCDend_K12
+HCDend_K13
+HCDend_K14
+HCDend_K15
 
-`HCSil_K 2`
-`HCSil_K 3`
+HCSil_K2
+HCSil_K3
+HCSil_K4
+HCSil_K5
+HCSil_K6
+HCSil_K7
+HCSil_K8
+HCSil_K9
+HCSil_K10
+HCSil_K11
+HCSil_K12
+HCSil_K13
+HCSil_K14
+HCSil_K15
 
-HCStats_K2$clus.avg.silwidths
-HCStats_K3$clus.avg.silwidths
 
-# rm(HC_Res_2, HC_Res_3, HC_Res_4, HC_Stats_2, HC_Stats_3, HC_Stats_4)
+HCSilWidth_AllK
 
 ```
 
 
+Using kmeans, PAM, and Hierarchical clustering methods, we can say we probably have aroun 2 clusters.
+
+Let's try density clustering.  (This tends to show that maybe there is only one "cluster," meaning that data are not clusterable.)
+```{r}
+
+rm(list = ls(pattern = "_K")
+  )
+
+
+# Compute DBSCAN using fpc package
+kNNdistplot(RouteStats_Pca, k = 10)
+abline(h = 8.5, lty = 2)
+
+set.seed(123456789)
+db <- fpc::dbscan(RouteStats_Pca,
+                  eps = 8.5,
+                  MinPts = 10
+                )
+
+str(db)
+db
+
+# Plot DBSCAN results
+fviz_cluster(db,
+             RouteStats_Pca,
+             stand = FALSE,
+             frame = FALSE,
+             geom = "point"
+            )
+
+```
 
 
 
