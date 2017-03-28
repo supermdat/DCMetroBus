@@ -4212,22 +4212,15 @@ View(RouteStats_Scaled)
 summary(RouteStats)
 summary(RouteStats_Scaled)
 
-# <- select_if(ClustData,
-#                               function(col) is.numeric(col) |
-#                                 is.integer(col)
-#                              ) %>% 
-  # scale() %>% 
-  # as.data.frame() %>% 
-  # na.omit()
-
-# str(ClustData_NoFact)
-# summary(ClustData_NoFact)
-
 ```
 
 
 PCA
+
+Using caret::preProcess.
 ```{r}
+
+str(RouteStats)
 
 Trnsfrm <- preProcess(select(RouteStats,
                              -Route
@@ -4240,12 +4233,132 @@ Trnsfrm$rotation
 
 RouteStats_Pca <- predict(Trnsfrm, RouteStats) %>% 
   select(-Route)
-RouteStats_Pca
+
+str(RouteStats_Pca)
+View(RouteStats_Pca)
+head(RouteStats_Pca)
 
 ```
 
 
-Clustering.
+PCA
+
+Using stats::prcomp.
+```{r}
+
+str(RouteStats)
+
+PcaRes <- prcomp(select(RouteStats,
+                        -Route
+                       ),
+                 center = TRUE,
+                 scale. = TRUE
+                )
+
+str(PcaRes)
+
+head(unclass(PcaRes$rotation))
+
+
+PcaRes_Vars <- get_pca_var(PcaRes)
+PcaRes_Vars
+# Where variables lie in relation to the eigenvectors
+PcaRes_Vars$coord
+
+# Graph of the Factor-Variable Map
+fviz_pca_var(PcaRes,
+             col.var = "contrib"
+            ) +
+  scale_color_gradient2(low = "white",
+                        mid = "blue", 
+                        high = "red",
+                        midpoint = 2
+                       )
+
+# Graph of the Factor-Variable Map (top 10 contributing variables)
+fviz_pca_var(PcaRes,
+             col.var = "contrib",
+             select.var = list(contrib = 10)
+            ) +
+  scale_color_gradient2(low = "white",
+                        mid = "blue", 
+                        high = "red",
+                        midpoint = 3.8
+                       )
+
+
+PcaRes_Rtes <- get_pca_ind(PcaRes)
+PcaRes_Rtes
+# Where routes lie in relation to the eigenvectors
+PcaRes_Rtes$coord
+
+# Graph of Route Map
+fviz_pca_ind(PcaRes,
+             col.ind="cos2"
+            ) +
+  scale_color_gradient2(low = "white",
+                        mid = "blue",
+                        high = "red",
+                        midpoint = 0.50
+                       ) +
+  # comment out xlim and ylim to see EXTREME outlier Routes
+  xlim(-5, 5) +
+  ylim(-5, 5)
+
+# Graph of Route Map (top 10 contributing variables)
+fviz_pca_ind(PcaRes,
+             col.ind="cos2",
+             select.var = list(cos2 = 10)
+            ) +
+  scale_color_gradient2(low = "white",
+                        mid = "blue",
+                        high = "red",
+                        midpoint = 0.50
+                       ) +
+  # comment out xlim and ylim to see EXTREME outlier Routes
+  xlim(-5, 5) +
+  ylim(-5, 5)
+
+# Inspecting what looks to be an EXTREME outlier route
+View(filter(WaitTime_RteCnts,
+            Route == "SH99"
+           )
+    )
+
+
+# Biplot of Routes and Variables
+fviz_pca_biplot(PcaRes,  geom = "text") +
+  xlim(-5, 5) +
+  ylim(-5, 5)
+
+
+
+# 9 eigenvalues give ~ 90% of the variance
+# "elbow" at ~6th Principal Component
+# ~ 8 eigenvalues > 1 (PC accounts for more variance than accounted the original standardized variables)
+View(get_eigenvalue(PcaRes))
+fviz_screeplot(PcaRes, ncp = 15)
+fviz_screeplot(PcaRes, ncp = 15, choice = "eigenvalue")
+
+
+# Create a dataframe for the "top" 8 PCs
+RouteStats_Pca_8Eign <- as.data.frame(PcaRes_Rtes$coord) %>% 
+  select(Dim.1,
+         Dim.2,
+         Dim.3,
+         Dim.4,
+         Dim.5,
+         Dim.6,
+         Dim.7,
+         Dim.8
+        )
+
+View(RouteStats_Pca_8Eign)
+
+```
+
+
+Clustering (using the Principal Components computed using caret::preProcess).
 
 Are the data clusterable?
 ```{r}
@@ -4371,7 +4484,7 @@ nb <- NbClust(RouteStats_Pca, #scale(iris[ ,-5]),
               index = "all"
              )
 
-fviz_nbclust(nb) + theme_minimal()
+fviz_nbclust(nb)
 
 ```
 
@@ -4555,6 +4668,18 @@ fviz_cluster(db,
             )
 
 ```
+
+
+We can say that MAYBE there are two clusters, but there is more evidence for probably just one cluster (i.e., the data are NOT clusterable).
+```{r}
+
+# remove no longer needed items
+rm(X2_Long, X2_Pct, ClustData_Ends, db, gap_stat, gap_stat_hcut, gap_stat_km, gap_stat_pm, i, nb, rd, Trnsfrm, x, y)
+
+```
+
+
+
 
 
 
