@@ -13,6 +13,10 @@ https://planitmetro.com/2016/11/16/data-download-metrobus-vehicle-location-data/
 Load the packages to be used.
 ```{r echo = FALSE, message = FALSE}
 
+# install.packages('rgeos', type='source')
+# install.packages('rgdal', type='source')
+# install.packages("NbClust")
+
 library("jsonlite")           # manipulating JSON files for zip codes
 library("sqldf")              # sql-based data manipulation
 library("tcltk")
@@ -38,10 +42,6 @@ library("fpc")                # used for clustering
 library("dbscan")             # used for clustering
 library("NbClust")            # used for clustering
 library("factoextra")         # plotting clusters
-# library("gpclib")
-# install.packages('rgeos', type='source')
-# install.packages('rgdal', type='source')
-# install.packages("NbClust")
 
 ```
 
@@ -337,6 +337,8 @@ Zips_All <- bind_rows(Zips0,
 
 # str(Zips_All)
 # View(head(Zips_All))
+
+saveRDS(Zips_All, "Zips_All")
 
 
 # str(LL_Stats)
@@ -957,55 +959,6 @@ rm(Stats_StSt)
 rm(Quantiles_SSHG_dt)
 str(Stats_StSt_HrGrp)
 # View(head(Stats_StSt_HrGrp, 50))
-
-```
-
-
-Feature engineering.
-
-Creating a BusEventRoute row number, and a RouteAlt_Lag1 indicator for future identification purposes. 
-```{r}
-
-# rm(Quantiles_dt)
-# rm(Quantiles_SS_dt)
-# rm(AllDays_BusDay)
-# rm(Quantiles_SSHG_dt)
-# rm(Stats_StSt)
-
-# AllDays_BusDayRoute <- group_by(Stats_StSt_HrGrp,
-#                                 Bus_ID,
-#                                 Event_Time_Date,
-#                                 Route
-#                                ) %>% 
-#   mutate(RouteAlt_Lag2 = lag(RouteAlt)  # used in future analyses to identify RouteAlt (direction) changes
-#          
-#          # Odometer_Distance_Lag1 = lag(Odometer_Distance),
-#          # 
-#          # # accounting for potential negative distances
-#          # TravelDistance_Ft = ifelse(Odometer_Distance >= Odometer_Distance_Lag1,
-#          #                            Odometer_Distance - Odometer_Distance_Lag1,
-#          #                            NA
-#          #                           ),
-#          # TravelDistance_Mi = TravelDistance_Ft / 5280, #5,280 feet in 1 mile
-#          # 
-#          # # accounting for potential negative times
-#          # TravelTime_Sec = as.numeric(ifelse(Event_Time >= lag(Departure_Time),
-#          #                                    Event_Time - lag(Departure_Time),
-#          #                                    NA
-#          #                                   )
-#          #                            ),
-#          # TravelTime_Hr = TravelTime_Sec / 3600, # 3,600 seconds in 1 hour
-#          # 
-#          # # accounting for potential negative or zero travel times
-#          # SpeedAvg_Mph = ifelse(TravelTime_Hr > 0,
-#          #                       TravelDistance_Mi / TravelTime_Hr,
-#          #                       NA
-#          #                      )
-#         ) %>% 
-#   data.frame()
-# 
-# rm(Stats_StSt_HrGrp)
-# str(AllDays_BusDayRoute)
 
 ```
 
@@ -2726,6 +2679,7 @@ RouteMinMax <- group_by(NewTravTime,
 
 str(RouteMinMax)
 View(RouteMinMax)
+head(RouteMinMax, 50)
 
 ```
 
@@ -3067,7 +3021,10 @@ WaitData_RoutePull <- bind_rows(Testing1,
          )
 
 rm(BusGroups, i, Testing3, Testing4, Testing5, Testing6, Testing7)
+
+saveRDS(WaitData_RoutePull, "WaitData_RoutePull")
 str(WaitData_RoutePull)
+
 View(head(WaitData_RoutePull, 500))
 View(tail(WaitData_RoutePull, 500))
 
@@ -3917,6 +3874,7 @@ str(tract@data)
 
 
 ggtract <- tidy(tract, region = "GEOID")
+saveRDS(ggtract, "ggtract")
 
 # str(ggtract)
 # summary(ggtract)
@@ -4637,7 +4595,38 @@ HCSilWidth_AllK
 ```
 
 
-Using kmeans, PAM, and Hierarchical clustering methods, we can say we probably have aroun 2 clusters.
+With Hierarchical Clustering and k=2, these are the routes in each cluster.
+```{r}
+
+HC_K2 <- eclust(RouteStats_Pca,
+                "hclust",
+                k = 2,
+                method = "complete",
+                graph = FALSE
+               )
+
+str(HC_K2)
+
+HC_K2_Clusters <- as.data.frame(HC_K2$cluster) %>% 
+  rename(ClusterNum = `HC_K2$cluster`) %>%
+  mutate(BusRoute = rownames(.)
+        ) %>% 
+  arrange(ClusterNum,
+          BusRoute
+         )
+
+HC_K2_Clusters
+
+group_by(HC_K2_Clusters,
+         ClusterNum
+        ) %>% 
+  summarise(Cnt = n()
+          )
+
+```
+
+
+Using kmeans, PAM, and Hierarchical clustering methods, we can say we probably have 2 clusters.
 
 Let's try density clustering.  (This tends to show that maybe there is only one "cluster," meaning that data are not clusterable.)
 ```{r}
