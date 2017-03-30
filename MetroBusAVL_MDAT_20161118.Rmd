@@ -7,11 +7,11 @@ output:
 
 This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook for analysis using data on the DC Bus System (WMATA Metrobus).  The data were obtained here:
 
-https://planitmetro.com/2016/11/16/data-download-metrobus-vehicle-location-data/
+[https://planitmetro.com/2016/11/16/data-download-metrobus-vehicle-location-data/](https://planitmetro.com/2016/11/16/data-download-metrobus-vehicle-location-data/)
 
 
 Load the packages to be used.
-```{r echo = FALSE, message = FALSE}
+```{r echo = FALSE, message = FALSE, warning = FALSE}
 
 # install.packages('rgeos', type='source')
 # install.packages('rgdal', type='source')
@@ -57,9 +57,10 @@ getwd()
 
 
 Then, actually get the data.
-```{r echo = FALSE}
+```{r echo = FALSE, message = FALSE, warning = FALSE}
 
-setwd("/Users/mdturse/Desktop/Analytics/DCMetroBus/Bus AVL Oct 2016")
+setwd(paste0(BasePath, "DCMetroBus/Bus AVL Oct 2016")
+     )
 
 for (i in 3:7){
   assign(paste0("Oct0", i, "Raw"),
@@ -81,7 +82,7 @@ for (i in 3:7){
 
 
 Put the daily data together.
-```{r}
+```{r echo = FALSE, message = FALSE, warning = FALSE}
 
 AllDays <- bind_rows(list(Oct03Raw, Oct04Raw, Oct05Raw, Oct06Raw, Oct07Raw),
                      .id = c("group")
