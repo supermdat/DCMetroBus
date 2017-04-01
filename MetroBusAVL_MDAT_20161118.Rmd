@@ -1,17 +1,21 @@
 ---
-title: "R Notebook for WMATA Metrobus Data"
+title: "R Notebook for WMATA Metrobus Analyses"
 output:
   html_notebook: default
   html_document: default
 ---
+   
+   This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook for analysis using data on the DC Bus System (WMATA Metrobus).  The data were obtained here:   
+[https://planitmetro.com/2016/11/16/data-download-metrobus-vehicle-location-data/](https://planitmetro.com/2016/11/16/data-download-metrobus-vehicle-location-data/)  
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook for analysis using data on the DC Bus System (WMATA Metrobus).  The data were obtained here:
 
-[https://planitmetro.com/2016/11/16/data-download-metrobus-vehicle-location-data/](https://planitmetro.com/2016/11/16/data-download-metrobus-vehicle-location-data/)
+These analyses coincide with a Shiny dashboard on waitimes found here:   
+[https://mdat.shinyapps.io/DCMetroBus_WaitTimes_20170319/](https://mdat.shinyapps.io/DCMetroBus_WaitTimes_20170319/)
 
-
-Load the packages to be used.
-```{r echo = FALSE, message = FALSE, warning = FALSE}
+   
+   Load the packages to be used.
+   
+```{r message = FALSE, warning = FALSE}
 
 # install.packages('rgeos', type='source')
 # install.packages('rgdal', type='source')
@@ -57,7 +61,7 @@ getwd()
 
 
 Then, actually get the data.
-```{r echo = FALSE, message = FALSE, warning = FALSE}
+```{r message = FALSE, warning = FALSE}
 
 setwd(paste0(BasePath, "DCMetroBus/Bus AVL Oct 2016")
      )
@@ -82,7 +86,7 @@ for (i in 3:7){
 
 
 Put the daily data together.
-```{r echo = FALSE, message = FALSE, warning = FALSE}
+```{r message = FALSE, warning = FALSE}
 
 AllDays <- bind_rows(list(Oct03Raw, Oct04Raw, Oct05Raw, Oct06Raw, Oct07Raw),
                      .id = c("group")
@@ -340,7 +344,6 @@ Zips_All <- bind_rows(Zips0,
 # View(head(Zips_All))
 
 saveRDS(Zips_All, "Zips_All")
-
 
 # str(LL_Stats)
 LL_Stats_UnqLatLng <- mutate(LL_Stats,
@@ -1977,86 +1980,6 @@ Investigation of TravelDistance_Mi_New.
 Why are there still some small or large TravelDistance_Mi_NewHvrs values.
 ```{r}
 
-# View(filter(AllDays_NewTravelDist,
-#             !is.na(TravelDistance_Mi_NewHvrs)
-#            ) %>% 
-#        select(-TD_Mi_q2,
-#               -TD_Mi_q98,
-#               -TD_Mi_SS_q5,
-#               -TD_Mi_SS_q95,
-#               -TD_Mi_SSHG_q5,
-#               -TD_Mi_SSHG_q95,
-#               -TD_Mi_Mean,
-#               -TD_Mi_Mean_F,
-#               -TD_Mi_SS_Mean,
-#               -TD_Mi_SS_Mean_F,
-#               -TD_Mi_SSHG_Mean,
-#               -TD_Mi_SSHG_Mean_F,
-#               -TD_Mi_Med,
-#               -TD_Mi_Med_F,
-#               -TD_Mi_SS_Med,
-#               -TD_Mi_SS_Med_F,
-#               -TD_Mi_SSHG_Med,
-#               -TD_Mi_SSHG_Med_F,
-#               -TD_Mi_Cnt,
-#               -TD_Mi_Cnt_F,
-#               -TD_Mi_SS_Cnt,
-#               -TD_Mi_SS_Cnt_F,
-#               -TD_Mi_SSHG_Cnt,
-#               -TD_Mi_SSHG_Cnt_F,
-#               -TT_Sec_q2,
-#               -TT_Sec_q98,
-#               -TT_Sec_SS_q5,
-#               -TT_Sec_SS_q95,
-#               -TT_Sec_SSHG_q5,
-#               -TT_Sec_SSHG_q95,
-#               -TT_Sec_Mean,
-#               -TT_Sec_Mean_F,
-#               -TT_Sec_SS_Mean,
-#               -TT_Sec_SS_Mean_F,
-#               -TT_Sec_SSHG_Mean,
-#               -TT_Sec_SSHG_Mean_F,
-#               -TT_Sec_Med,
-#               -TT_Sec_Med_F,
-#               -TT_Sec_SS_Med,
-#               -TT_Sec_SS_Med_F,
-#               -TT_Sec_SSHG_Med,
-#               -TT_Sec_SSHG_Med_F,
-#               -TT_Sec_Cnt,
-#               -TT_Sec_Cnt_F,
-#               -TT_Sec_SS_Cnt,
-#               -TT_Sec_SS_Cnt_F,
-#               -TT_Sec_SSHG_Cnt,
-#               -TT_Sec_SSHG_Cnt_F,
-#               -TT_Hr_q2,
-#               -TT_Hr_q98,
-#               -TT_Hr_SS_q5,
-#               -TT_Hr_SS_q95,
-#               -TT_Hr_SSHG_q5,
-#               -TT_Hr_SSHG_q95,
-#               -TT_Hr_Mean,
-#               -TT_Hr_Mean_F,
-#               -TT_Hr_SS_Mean,
-#               -TT_Hr_SS_Mean_F,
-#               -TT_Hr_SSHG_Mean,
-#               -TT_Hr_SSHG_Mean_F,
-#               -TT_Hr_Med,
-#               -TT_Hr_Med_F,
-#               -TT_Hr_SS_Med,
-#               -TT_Hr_SS_Med_F,
-#               -TT_Hr_SSHG_Med,
-#               -TT_Hr_SSHG_Med_F,
-#               -TT_Hr_Cnt,
-#               -TT_Hr_Cnt_F,
-#               -TT_Hr_SS_Cnt,
-#               -TT_Hr_SS_Cnt_F,
-#               -TT_Hr_SSHG_Cnt,
-#               -TT_Hr_SSHG_Cnt_F
-#              ) %>% 
-#        arrange(TravelDistance_Mi_NewHvrs) %>% 
-#        head(500)
-#     )
-
 View(filter(AllDays_NewTravelDist,
             !is.na(TravelDistance_Mi_NewHvrs)
            ) %>% 
@@ -2808,7 +2731,10 @@ WaitData_DayPull <- bind_rows(Testing_3,
          )
 
 rm(Testing_3, Testing_4, Testing_5, Testing_6, Testing_7)
+
+saveRDS(WaitData_DayPull, "WaitData_DayPull")
 str(WaitData_DayPull)
+
 View(head(WaitData_DayPull, 500))
 View(tail(WaitData_DayPull, 500))
 
@@ -3842,7 +3768,7 @@ str(Shiny_WaitData_Base)
 View(tail(Shiny_WaitData_Base, 500))
 
 saveRDS(Shiny_WaitData_Base,
-        "Shiny_WaitData_Base.rds"
+        "Shiny_WaitData_Base"
        )
 
 ```
@@ -3946,7 +3872,7 @@ summary(StopZip_Left)
 Test mapping functionaltiy.
 ```{r}
 
-map <- get_map(location = c(lon = -77.03676, lat = 38.89784),
+map <- get_map(location = c(lon = -77.03676, lat = 38.89784), #coordinates for the White House
                source = "google",
                # maptype = "roadmap"
                zoom = 12
@@ -4049,46 +3975,7 @@ str(select(NewTravTime,
    )
 str(WaitTime_RteCnts)
 
- 
- 
-# ClustData <- select(WaitTime_RteCnts,
-#                     group,
-#                     BusDay_EventNum,
-#                     Route,
-#                     RteChange2,
-#                     RouteAlt,
-#                     DirChange2,
-#                     Route_Direction,
-#                     Stop_Sequence,
-#                     StopID_Indicator,
-#                     Stop_County,
-#                     Stop_City,
-#                     Stop_Zip,
-#                     Event_Time_Hr,
-#                     Dwell_Time2,
-#                     TravelDistance_Mi_NewHvrs,
-#                     TravelDistance_Mi_NewHvrs_Label,
-#                     TT_Sec_New,
-#                     TT_Sec_New_Label,
-#                     WaitTime_Min2
-#                    ) %>% 
-#   filter(WaitTime_Min2 <= 180) %>% 
-#   mutate(SpeedAvg_Mph_TDMNH_TTSN = TravelDistance_Mi_NewHvrs / 
-#            (TT_Sec_New / 60 / 60)
-#         )
-# %>% 
-#   select_if(ClustData,
-#             function(col) is.numeric(col) |
-#               is.integer(col)
-#            ) %>% 
-#    scale()
 
-# str(ClustData)
-# View(tail(ClustData, 500))
-# rownames(ClustData) <- ClustData$Route
-# ClustData$Route <- as.factor(ClustData$Route)
-# str(ClustData)
-# head(ClustData)
 
 
 RouteStats <- filter(WaitTime_RteCnts,
@@ -4193,8 +4080,9 @@ Trnsfrm$rotation
 RouteStats_Pca <- predict(Trnsfrm, RouteStats) %>% 
   select(-Route)
 
-str(RouteStats_Pca)
 View(RouteStats_Pca)
+
+str(RouteStats_Pca)
 head(RouteStats_Pca)
 
 ```
@@ -4661,10 +4549,22 @@ fviz_cluster(db,
 
 
 We can say that MAYBE there are two clusters, but there is more evidence for probably just one cluster (i.e., the data are NOT clusterable).
-```{r}
+```{r message = FALSE, warning = FALSE}
 
 # remove no longer needed items
-rm(X2_Long, X2_Pct, ClustData_Ends, db, gap_stat, gap_stat_hcut, gap_stat_km, gap_stat_pm, i, nb, rd, Trnsfrm, x, y)
+rm(X2_Long, X2_Pct, ClustData_Ends, db, gap_stat, gap_stat_hcut, gap_stat_km, gap_stat_pm, i, nb, rd, Trnsfrm, x, y, BusRoute, Rte, map, WaitTime_AllBus_Zip_Box, WaitTime_AllBus_Zip_Violin, X2_WaitByHr_Line)
+
+rm(list = ls(pattern = "Count")
+  )
+
+rm(list = ls(pattern = "RouteStop_")
+  )
+
+rm(list = ls(pattern = "TimeBtw")
+  )
+
+rm(list = ls(pattern = "PcaRes")
+  )
 
 ```
 
@@ -5755,14 +5655,3 @@ DwellTDeltaT_Scatter_Combined
 
 
 
-
-
-
-
-
-
-
-
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
-
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file).
