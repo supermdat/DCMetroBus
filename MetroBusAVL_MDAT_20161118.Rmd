@@ -3785,18 +3785,22 @@ saveRDS(Shiny_WaitData_Base,
         "Shiny_WaitData_Base"
        )
 
+# Shiny_WaitData_Base <- readRDS("Shiny_WaitData_Base")
+
 ```
 
 
-Prep data for mapping.  The zip code shapefile was originally obtained from data.gov at https://catalog.data.gov/dataset/tiger-line-shapefile-2016-2010-nation-u-s-2010-census-5-digit-zip-code-tabulation-area-zcta5-na
-```{r}
+Prep data for mapping.
+
+Load and prep the Zip Code shapefile.  The shapefile was originally obtained from [data.gov](https://catalog.data.gov/dataset/tiger-line-shapefile-2016-2010-nation-u-s-2010-census-5-digit-zip-code-tabulation-area-zcta5-na).
+```{r message = FALSE, warning = FALSE}
 
 # devtools::install_github("dkahle/ggmap")
 # devtools::install_github("hadley/ggplot2")
 # install.packages("ggmap", type = "source")
 
 # devtools::install_github('hadley/ggplot2')
-devtools::install_github("hadley/ggplot2@v2.2.0")
+# devtools::install_github("hadley/ggplot2@v2.2.0")
 # devtools::install_github('thomasp85/ggforce')
 # devtools::install_github('thomasp85/ggraph')
 # devtools::install_github('slowkow/ggrepel')
@@ -3819,14 +3823,17 @@ ggtract <- tidy(tract, region = "GEOID")
 saveRDS(ggtract, "ggtract")
 # ggtract <- readRDS("ggtract")
 
-# str(ggtract)
-# summary(ggtract)
+str(ggtract)
+summary(ggtract)
 # View(head(ggtract, 50))
 
+```
 
 
-# str(Shiny_WaitData_Base)
-# Shiny_WaitData_Base <- readRDS("Shiny_WaitData_Base")
+Prep data for mapping.
+
+Join the mapping data to the base data used in Shiny.
+```{r}
 
 ZipWaitTest <- filter(Shiny_WaitData_Base,
                       WaitTime_Min <= 180 &
