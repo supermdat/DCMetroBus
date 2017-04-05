@@ -344,6 +344,7 @@ Zips_All <- bind_rows(Zips0,
 # View(head(Zips_All))
 
 saveRDS(Zips_All, "Zips_All")
+# Zips_All <- readRDS("Zips_All")
 
 # str(LL_Stats)
 LL_Stats_UnqLatLng <- mutate(LL_Stats,
@@ -1153,14 +1154,15 @@ str(AllDays_NewOrder)
 Summarizing the data to help spot anomolies.
 ```{r}
 
-View(group_by(AllDays_NewOrder,
+# View(
+  group_by(AllDays_NewOrder,
               Stop_City) %>% 
        summarise(Cnt_Num = n(),
                  Cnt_Pct = 100*Cnt_Num / (nrow(AllDays_NewOrder)
                                          )
                 ) %>% 
        arrange(desc(Cnt_Num))
-)
+# )
 
 summary(AllDays_NewOrder)
 
@@ -1629,6 +1631,7 @@ View(AllDays_NewTravelDist %>%
        head(500)
     )
 
+message("All records")
 summary(select(AllDays_NewTravelDist,
                TravelDistance_Mi,
                TravelDistance_Mi_Hvrs,
@@ -1637,6 +1640,7 @@ summary(select(AllDays_NewTravelDist,
               )
        )
 
+message("BusDay_EventNum != 1")
 summary(select(filter(AllDays_NewTravelDist,
                       BusDay_EventNum != 1
                      ),
@@ -1647,7 +1651,7 @@ summary(select(filter(AllDays_NewTravelDist,
               )
        )
 
-
+message("All records")
 cor(select(AllDays_NewTravelDist,
            TravelDistance_Mi,
            TravelDistance_Mi_Hvrs,
@@ -2733,6 +2737,7 @@ WaitData_DayPull <- bind_rows(Testing_3,
 rm(Testing_3, Testing_4, Testing_5, Testing_6, Testing_7)
 
 saveRDS(WaitData_DayPull, "WaitData_DayPull")
+# WaitData_DayPull <- readRDS("WaitData_DayPull")
 str(WaitData_DayPull)
 
 View(head(WaitData_DayPull, 500))
@@ -2820,6 +2825,7 @@ BusGroups <- group_by(NewTravTime,
 str(BusGroups)
 View(BusGroups)
 summary(BusGroups)
+head(BusGroups, 50)
 
 ```
 
@@ -2950,6 +2956,7 @@ WaitData_RoutePull <- bind_rows(Testing1,
 rm(BusGroups, i, Testing3, Testing4, Testing5, Testing6, Testing7)
 
 saveRDS(WaitData_RoutePull, "WaitData_RoutePull")
+# WaitData_RoutePull <- readRDS("WaitData_RoutePull")
 str(WaitData_RoutePull)
 
 View(head(WaitData_RoutePull, 500))
@@ -3292,17 +3299,20 @@ nrow(filter(WaitTime_RteCnts,
     ) / nrow(WaitTime_RteCnts)
 
 
+message("All records")
 select(WaitTime_RteCnts,
        WaitTime_Min2
       ) %>% 
   summary()
 
+message("12 passes per day in a 5-day dataset")
 filter(WaitTime_RteCnts,
        RouteStop_CntNum > 60  # 12 passes per day in a 5-day dataset
       ) %>% 
   select(WaitTime_Min2) %>% 
   summary()
 
+message("<180min. >=180min, probably means something went wrong")
 filter(WaitTime_RteCnts,
        WaitTime_Min2 < 180  # probably means that something went wrong
       ) %>% 
@@ -3738,6 +3748,10 @@ BaseData: Used in plots by hour and zipcode (first two Shiny tabs).
 ```{r}
 
 # str(WaitTime_RteCnts)
+nrow(filter(WaitTime_RteCnts,
+            WaitTime_Min2 <= 180
+           )
+    ) / nrow(WaitTime_RteCnts)
 
 Shiny_WaitData_Base <- select(WaitTime_RteCnts,
                               Route,
@@ -3774,7 +3788,7 @@ saveRDS(Shiny_WaitData_Base,
 ```
 
 
-Prep data for mapping.
+Prep data for mapping.  The zip code shapefile was originally obtained from data.gov at https://catalog.data.gov/dataset/tiger-line-shapefile-2016-2010-nation-u-s-2010-census-5-digit-zip-code-tabulation-area-zcta5-na
 ```{r}
 
 # devtools::install_github("dkahle/ggmap")
@@ -3788,8 +3802,9 @@ devtools::install_github("hadley/ggplot2@v2.2.0")
 # devtools::install_github('slowkow/ggrepel')
 
 
+# shapefile originally obtained from: https://catalog.data.gov/dataset/tiger-line-shapefile-2016-2010-nation-u-s-2010-census-5-digit-zip-code-tabulation-area-zcta5-na
 tract <- 
-  readOGR(dsn = "/Users/mdturse/Desktop/Analytics/DCMetroBus/tl_2016_us_zcta510",
+  readOGR(dsn = paste0(BasePath, "DCMetroBus/tl_2016_us_zcta510"),
           layer = "tl_2016_us_zcta510"
          )
   
@@ -3802,6 +3817,7 @@ str(tract@data)
 
 ggtract <- tidy(tract, region = "GEOID")
 saveRDS(ggtract, "ggtract")
+# ggtract <- readRDS("ggtract")
 
 # str(ggtract)
 # summary(ggtract)
@@ -3810,6 +3826,7 @@ saveRDS(ggtract, "ggtract")
 
 
 # str(Shiny_WaitData_Base)
+# Shiny_WaitData_Base <- readRDS("Shiny_WaitData_Base")
 
 ZipWaitTest <- filter(Shiny_WaitData_Base,
                       WaitTime_Min <= 180 &
@@ -3858,6 +3875,7 @@ summary(ZipWaitTest)
 View(head(ZipWaitTest, 500))
 
 
+# ggtract <- readRDS("ggtract")
 StopZip_Left <- left_join(ZipWaitTest,
                           ggtract,
                           by = c("ZipCode" = "id")
@@ -3936,6 +3954,10 @@ Shiny_WaitData_Map_Wed <- filter(Shiny_WaitData_Map,
                                  YrMthDay == as.POSIXct("2016-10-05")
                                 )
 
+Shiny_WaitData_Map_Thu <- filter(Shiny_WaitData_Map,
+                                 YrMthDay == as.POSIXct("2016-10-06")
+                                )
+
 str(Shiny_WaitData_Map_Wed)
 summary(Shiny_WaitData_Map_Wed)
 
@@ -3948,6 +3970,10 @@ saveRDS(Shiny_WaitData_Map_Wed,
         "Shiny_WaitData_Map_Wed.rds"
        )
 
+saveRDS(Shiny_WaitData_Map_Thu,
+        "Shiny_WaitData_Map_Thu.rds"
+       )
+
 ```
 
 
@@ -3958,7 +3984,7 @@ Clustering
 Data prep.
 ```{r}
 
-rm(tract, ggtract, StopZip_Left, ZipWaitTest, Shiny_WaitData_Base, Shiny_WaitData_Map, Shiny_WaitData_Map_Wed)
+rm(tract, ggtract, StopZip_Left, ZipWaitTest, Shiny_WaitData_Base, Shiny_WaitData_Map, Shiny_WaitData_Map_Wed, Shiny_WaitData_Map_Thu)
 
 
 dim(NewTravTime)
@@ -4055,7 +4081,10 @@ str(RouteStats_Scaled)
 class(RouteStats_Scaled)
 View(RouteStats_Scaled)
 
+message("RouteStats")
 summary(RouteStats)
+
+message("RouteStats_Scaled")
 summary(RouteStats_Scaled)
 
 ```
@@ -4565,6 +4594,8 @@ rm(list = ls(pattern = "TimeBtw")
 
 rm(list = ls(pattern = "PcaRes")
   )
+
+rm(BasePath)
 
 ```
 
