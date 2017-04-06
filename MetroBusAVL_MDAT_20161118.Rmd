@@ -53,7 +53,7 @@ library("factoextra")         # plotting clusters
 Get the Bus data.
 
 First let's check the working directory.
-```{r}
+```{r, message=TRUE, warning=TRUE, include=FALSE}
 
 getwd()
 
@@ -61,7 +61,7 @@ getwd()
 
 
 Then, actually get the data.
-```{r message = FALSE, warning = FALSE}
+```{r warning = FALSE}
 
 setwd(paste0(BasePath, "DCMetroBus/Bus AVL Oct 2016")
      )
@@ -259,18 +259,20 @@ View(head(arrange(LL_Stats,
          )
     )
 
-View(head(arrange(LL_Stats,
+
+  head(arrange(LL_Stats,
                   desc(Lng_MeaLessMed)
                  ),
           500
          )
-    )
 
 ```
 
 
 Pulling in Zip Code data from api.geonames.org.
-```{r}
+
+Need to group in bunches as [http://api.geonames.org](http://api.geonames.org) limits pulls to ~2000 per hour.
+```{r message=FALSE, warning=FALSE}
 
 # URL EXAMPLE:
 # http://api.geonames.org/findNearbyPostalCodesJSON?lat=38.89560&lng=-76.94873&radius=0&username=supermdat
@@ -281,14 +283,14 @@ url_3 <- "&radius=0&username="
 username <- "supermdat"
 
 
-# need to group in bunches as http://api.geonames.org limits pulls to 2000 per hour
+# need to group in bunches as http://api.geonames.org limits pulls to ~2000 per hour
 
-
+for(k in 0:10){
 ##### Store everything in multiple lists
 pages1 <- list()
 
 
-system.time(
+# system.time(
 
 for(i in 1:1000){
   lat <- filter(LL_Stats,
@@ -311,16 +313,22 @@ for(i in 1:1000){
                        flatten = TRUE
                       )
   
-  message("Retrieving Zip Code ", i)
+  message("Retrieving Zip Code ", k, "_", i)
   
   pages1[[i]] <- APIData1$postalCodes
   
 }
-)
+# )
 
 
 ##### Combine the lists into one page
-Zips1 <- rbind.pages(pages1[sapply(pages1, length) > 0])
+assign(paste0("Zips", k),
+       rbind.pages(pages1[sapply(pages1, length) > 0])
+      )
+
+Sys.sleep(4500)
+
+}
 
 
 ##### Combine all pages
@@ -343,8 +351,26 @@ Zips_All <- bind_rows(Zips0,
 # str(Zips_All)
 # View(head(Zips_All))
 
-saveRDS(Zips_All, "Zips_All")
-# Zips_All <- readRDS("Zips_All")
+# saveRDS(Zips_All, "Zips_All")
+
+```
+
+
+Reading in the saved Zips_All file.  This is only done when re-running the code to avoid the delay in getting data from [http://api.geonames.org](http://api.geonames.org)
+```{r}
+
+Zips_All <- readRDS("Zips_All")
+
+str(Zips_All)
+
+```
+
+
+Pulling in Zip Code data from api.geonames.org.
+
+Linking the Zip Code data to LL_Stats (the unique Stop_Id-LatLong data).
+```{r}
+
 
 # str(LL_Stats)
 LL_Stats_UnqLatLng <- mutate(LL_Stats,
@@ -2617,7 +2643,7 @@ Waiting time analyses.
 Munging and sampling data to go from time beteen buses to "average" waiting time.
 
 (Pulls here are done by day, as the data are too large to do at once.)
-```{r}
+```{r eval=FALSE}
 
 # View(head(NewTravTime, 500))
 
@@ -2736,8 +2762,14 @@ WaitData_DayPull <- bind_rows(Testing_3,
 
 rm(Testing_3, Testing_4, Testing_5, Testing_6, Testing_7)
 
-saveRDS(WaitData_DayPull, "WaitData_DayPull")
-# WaitData_DayPull <- readRDS("WaitData_DayPull")
+# saveRDS(WaitData_DayPull, "WaitData_DayPull")
+
+```
+
+
+```{r}
+
+WaitData_DayPull <- readRDS("WaitData_DayPull")
 str(WaitData_DayPull)
 
 View(head(WaitData_DayPull, 500))
@@ -2835,7 +2867,7 @@ Waiting time analyses.
 Munging and sampling data to go from time beteen buses to "average" waiting time.
 
 (Pulls here are done by groupings of bus routes, as the data are too large to do at once.)
-```{r}
+```{r eval=FALSE}
 
 # View(head(NewTravTime, 500))
 
@@ -2955,8 +2987,14 @@ WaitData_RoutePull <- bind_rows(Testing1,
 
 rm(BusGroups, i, Testing3, Testing4, Testing5, Testing6, Testing7)
 
-saveRDS(WaitData_RoutePull, "WaitData_RoutePull")
-# WaitData_RoutePull <- readRDS("WaitData_RoutePull")
+# saveRDS(WaitData_RoutePull, "WaitData_RoutePull")
+
+```
+
+
+```{r}
+
+WaitData_RoutePull <- readRDS("WaitData_RoutePull")
 str(WaitData_RoutePull)
 
 View(head(WaitData_RoutePull, 500))
@@ -5688,6 +5726,8 @@ DwellTDeltaT_Scatter_Combined <- ggplot(CombinedData,
 #   geom_jitter()
 
 DwellTDeltaT_Scatter_Combined
+
+# rm(AllDays_StopIDNew, lat, LL_Stats, LL_Stats_UnqLatLng, LL_StatsZips, lng, WaitData_DayPull, WaitData_RoutePull, Zip, Zips_All, Zips0, Zips1, Zips2, Zips3, Zips4, Zips5, Zips6, Zips7, Zips8, Zips9, Zips10, APIData1, BasePath, i, k, pages1, url_1, url_2, url_3, username)
 
 ```
 
