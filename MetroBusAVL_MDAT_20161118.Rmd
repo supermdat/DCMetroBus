@@ -10,11 +10,10 @@ output:
 
 
 These analyses coincide with a Shiny dashboard on waitimes found here:   
-[https://mdat.shinyapps.io/DCMetroBus_WaitTimes_20170319/](https://mdat.shinyapps.io/DCMetroBus_WaitTimes_20170319/)
+[https://mdat.shinyapps.io/DCMetroBus_WaitTimes_20170319/](https://mdat.shinyapps.io/DCMetroBus_WaitTimes_20170319/)  
+  
 
-   
    Load the packages to be used.
-   
 ```{r message = FALSE, warning = FALSE}
 
 # install.packages('rgeos', type='source')
@@ -50,9 +49,18 @@ library("factoextra")         # plotting clusters
 ```
 
 
-Get the Bus data.
+  Session Info.
+  
+```{r}
 
-First let's check the working directory.
+sessionInfo()
+
+```
+  
+    
+    Get the Bus data.
+
+First let's update the directory for this Chunk to the location where the raw data files are saved.
 ```{r, message=TRUE, warning=TRUE, include=FALSE}
 
 getwd()
