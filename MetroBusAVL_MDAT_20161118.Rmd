@@ -54,7 +54,6 @@ library("factoextra")         # plotting clusters
 ```{r}
 
 sessionInfo()
-
 ```
   
     
@@ -1306,7 +1305,7 @@ View(filter(AllDays_NewOrder,
 
 Investigation of TravelDistance_Mi.
 
-These records are NA becuase the current record odometer is less than the previous record odometer. Theoretically, this should NOT happen. Me: it appears that about 67% of all instances where TravelDistance_Mi is NA (other than because it's th first record of the day) are instances where DirChange2 is "Change". This is weird and should be asked to WMATA.
+These records are NA becuase the current record odometer is less than the previous record odometer. Theoretically, this should NOT happen. Me: it appears that about 67% of all instances where TravelDistance_Mi is NA (other than because it's the first record of the day) are instances where DirChange2 is "Change". This is weird and should be asked to WMATA.
 ```{r}
 
 View(filter(AllDays_NewOrder,
@@ -1826,7 +1825,7 @@ TravDist_MiVsCalc
 Investigation of TravelDistance_Mi & TravelDistance_Mi_Hvrs & TravelDistance_Mi_New.
 
 Graphing test with rbokeh.
-```{r}
+```{r, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
 
 TravDist_MiVsCalc_Bokeh <- figure(data = select(AllDays_NewTravelDist_10Pct,
                                                 TravelDistance_Mi_NewHvrs,
@@ -2768,7 +2767,6 @@ WaitData_DayPull <- bind_rows(Testing_3,
           Event_Time
          )
 
-rm(Testing_3, Testing_4, Testing_5, Testing_6, Testing_7)
 
 # saveRDS(WaitData_DayPull, "WaitData_DayPull")
 
@@ -2776,6 +2774,9 @@ rm(Testing_3, Testing_4, Testing_5, Testing_6, Testing_7)
 
 
 ```{r}
+
+rm(Testing_3, Testing_4, Testing_5, Testing_6, Testing_7)
+
 
 WaitData_DayPull <- readRDS("WaitData_DayPull")
 str(WaitData_DayPull)
@@ -2993,7 +2994,6 @@ WaitData_RoutePull <- bind_rows(Testing1,
           Event_Time
          )
 
-rm(BusGroups, i, Testing3, Testing4, Testing5, Testing6, Testing7)
 
 # saveRDS(WaitData_RoutePull, "WaitData_RoutePull")
 
@@ -3001,6 +3001,9 @@ rm(BusGroups, i, Testing3, Testing4, Testing5, Testing6, Testing7)
 
 
 ```{r}
+
+rm(BusGroups, i, Testing3, Testing4, Testing5, Testing6, Testing7)
+
 
 WaitData_RoutePull <- readRDS("WaitData_RoutePull")
 str(WaitData_RoutePull)
@@ -3141,7 +3144,7 @@ View(filter(Compare_NTT_WD,
 
 
 Clean up the data a bit.
-```{r}
+```{r warning=FALSE}
 
 rm(BusGroups, RouteMinMax, Samp, Testing1, Testing2, Testing3, Testing4, Testing5, Testing_3, Testing_4, Testing_5, Testing_6, Testing_7, WaitData_DayPull, WaitData_Diff)
 
@@ -3341,6 +3344,26 @@ nrow(filter(WaitTime_RteCnts,
 # Rows of extremely long wait times
 nrow(filter(WaitTime_RteCnts,
             WaitTime_Min2 > 180
+           )
+    )
+
+nrow(filter(WaitTime_RteCnts,
+            WaitTime_Min2 > 60
+           )
+    ) / nrow(WaitTime_RteCnts)
+
+nrow(filter(WaitTime_RteCnts,
+            WaitTime_Min2 > 120
+           )
+    ) / nrow(WaitTime_RteCnts)
+
+nrow(filter(WaitTime_RteCnts,
+            WaitTime_Min2 > 180
+           )
+    ) / nrow(WaitTime_RteCnts)
+
+nrow(filter(WaitTime_RteCnts,
+            WaitTime_Min2 > 240
            )
     ) / nrow(WaitTime_RteCnts)
 
@@ -3795,7 +3818,27 @@ BaseData: Used in plots by hour and zipcode (first two Shiny tabs).
 
 # str(WaitTime_RteCnts)
 nrow(filter(WaitTime_RteCnts,
+            WaitTime_Min2 <= 60
+           )
+    ) / nrow(WaitTime_RteCnts)
+
+nrow(filter(WaitTime_RteCnts,
+            WaitTime_Min2 <= 120
+           )
+    ) / nrow(WaitTime_RteCnts)
+
+nrow(filter(WaitTime_RteCnts,
             WaitTime_Min2 <= 180
+           )
+    )
+
+nrow(filter(WaitTime_RteCnts,
+            WaitTime_Min2 <= 180
+           )
+    ) / nrow(WaitTime_RteCnts)
+
+nrow(filter(WaitTime_RteCnts,
+            WaitTime_Min2 <= 240
            )
     ) / nrow(WaitTime_RteCnts)
 
